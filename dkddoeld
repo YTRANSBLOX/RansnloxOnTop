@@ -1,0 +1,1398 @@
+if _G.FIXMYPHONE_Unload then pcall(_G.FIXMYPHONE_Unload) end
+
+local Connections = {}
+local function bind(signal, fn)
+    local c = signal:Connect(fn)
+    table.insert(Connections, c)
+    return c
+end
+
+local Players = game:GetService("Players")
+local CS = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local SG = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LP = Players.LocalPlayer
+local genv = (getgenv and getgenv()) or _G
+
+local HUMAN = true
+
+local SWEEP = {
+    wipe = { "Smudge" },
+    scrub = { "Grime" },
+    buff = { "Haze" },
+    brush = { "Lint" },
+    bubbles = { "Bubble" },
+}
+
+local function notify(t)
+    pcall(function() SG:SetCore("SendNotification", { Title = "FMP AUTO", Text = tostring(t), Duration = 5 }) end)
+end
+
+genv.FMP_RUN = (genv.FMP_RUN or 0) + 1
+local myRun = genv.FMP_RUN
+genv.FMP_STOP = false
+local function alive() return genv.FMP_RUN == myRun and not genv.FMP_STOP end
+
+local benchFolder = LP:WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("Bench")
+local Bench, Pointer, World, Parts, Hud, Autoplay
+do
+    local ok, err = pcall(function()
+        Bench = require(benchFolder)
+        Pointer = require(benchFolder:WaitForChild("Pointer"))
+        World = require(benchFolder:WaitForChild("World"))
+        Parts = require(benchFolder:WaitForChild("Parts"))
+        Hud = require(benchFolder:WaitForChild("Hud"))
+        Autoplay = require(benchFolder:WaitForChild("Autoplay"))
+    end)
+    if not ok then
+        notify("Failed to load Bench modules: " .. tostring(err))
+        return
+    end
+end
+
+local TradeIns, NetworkClient, Phones, ServerState, ShopSave, Contracts
+do
+    pcall(function()
+        TradeIns = require(ReplicatedStorage.Shared.TradeIns)
+        NetworkClient = require(ReplicatedStorage.Shared.NetworkClient)
+        Phones = require(ReplicatedStorage.Shared.Phones)
+        local ClientFolder = LP:WaitForChild("PlayerScripts"):WaitForChild("Client")
+        ServerState = require(ClientFolder:WaitForChild("ServerState"))
+    end)
+    pcall(function()
+        ShopSave = require(ReplicatedStorage.Shared.ShopSave)
+    end)
+    pcall(function()
+        Contracts = require(ReplicatedStorage.Shared.Contracts)
+    end)
+end
+
+local Net
+for _, t in ipairs(getgc(true)) do
+    if type(t) == "table" and rawget(t, "TakeOrder") and rawget(t, "JobRequest") then
+        Net = t
+        break
+    end
+end
+
+local function ups(f)
+    local ok, t = pcall(debug.getupvalues, f)
+    return (ok and type(t) == "table") and t or {}
+end
+local function isWorking() return ups(Bench.leave)[1] == true end
+local function getStep()
+    for _, v in pairs(ups(Bench.leave)) do
+        if type(v) == "table" and type(rawget(v, "key")) == "string"
+            and type(rawget(v, "index")) == "number" and type(rawget(v, "total")) == "number" then
+            return v
+        end
+    end
+end
+local function stepKey() local s = getStep() return s and s.key or nil end
+local function getWork()
+    for _, v in pairs(ups(Bench.take)) do
+        if type(v) == "table" and type(rawget(v, "shards")) == "table" then return v end
+    end
+end
+
+local function jitter(a, b) if HUMAN then task.wait(a + math.random() * (b - a)) end end
+local api = {
+    state = function()
+        local w = getWork()
+        return { working = isWorking(), step = getStep(), log = {}, shards = w and #w.shards or 0 }
+    end,
+    spot = function(x, z)
+        local p = workspace.CurrentCamera:WorldToViewportPoint(World.frame() * Vector3.new(x, Parts.Back, z))
+        return Vector2.new(p.X, p.Y)
+    end,
+    world = function(v)
+        local p = workspace.CurrentCamera:WorldToViewportPoint(v)
+        return Vector2.new(p.X, p.Y)
+    end,
+    point = function(v) Pointer.at = v Pointer.touch = false end,
+    press = function() jitter(0.03, 0.12) Pointer.pressed = true World.pressBegan() end,
+    release = function() jitter(0.02, 0.08) Pointer.pressed = false World.pressEnded() end,
+    World = World,
+}
+
+local function drag(pts, steps)
+    api.point(api.spot(pts[1][1], pts[1][2]))
+    RunService.RenderStepped:Wait()
+    api.press()
+    for i = 2, #pts do
+        local a, b = pts[i - 1], pts[i]
+        for s = 1, steps do
+            local t = s / steps
+            api.point(api.spot(a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t))
+            RunService.RenderStepped:Wait()
+        end
+    end
+    api.release()
+end
+local function partPos(part)
+    if part:IsA("BasePart") then return part.Position end
+    return part:GetPivot().Position
+end
+local function remaining(names)
+    local out = {}
+    for _, it in pairs(World.items) do
+        if type(it) == "table" and it.part and table.find(names, it.name) then
+            local p = it.part
+            if p.Parent and p:IsDescendantOf(workspace) and (not p:IsA("BasePart") or p.Transparency < 0.95) then
+                out[#out + 1] = it
+            end
+        end
+    end
+    return out
+end
+local function sweepItem(it)
+    pcall(function()
+        local loc = World.frame():PointToObjectSpace(partPos(it.part))
+        local x = math.clamp(loc.X, -2.5, 2.5)
+        local z = math.clamp(loc.Z, -5.6, 5.6)
+        for _ = 1, 3 do
+            local pts = {}
+            for i = 0, 5 do
+                pts[#pts + 1] = {
+                    math.clamp(x + (i % 2 == 0 and -0.6 or 0.6), -2.5, 2.5),
+                    math.clamp(z + (i % 4 < 2 and -0.25 or 0.25), -5.6, 5.6),
+                }
+            end
+            drag(pts, 5)
+            if not alive() then return end
+        end
+    end)
+end
+
+local function waitStepChange(k, t)
+    local t0 = os.clock()
+    while os.clock() - t0 < t do
+        if stepKey() ~= k then return true end
+        task.wait(0.1)
+    end
+    return false
+end
+local function chooseCase()
+    local v = Hud.view()
+    local ch = (v and v.choices) or {}
+    local work = getWork()
+    local want = work and work.wanted
+    local idx = 1
+    if want and want ~= "" then
+        for i, c in ipairs(ch) do
+            if type(c) == "table" then
+                for _, f in ipairs({ "key", "kind", "name", "id" }) do
+                    if c[f] ~= nil and tostring(c[f]):lower() == tostring(want):lower() then idx = i end
+                end
+            end
+        end
+    end
+    local c = ch[idx]
+    local tries = {
+        function() Hud.pick(idx) end,
+        function() Hud.pick(c) end,
+        function() if type(c) == "table" then Hud.pick(c.key) end end,
+        function() Hud.pickPicked() end,
+    }
+    for _, f in ipairs(tries) do
+        pcall(f)
+        task.wait(0.5)
+        if waitStepChange("case", 0.8) then return true end
+        pcall(Hud.pressMain)
+        if waitStepChange("case", 1.0) then return true end
+    end
+    return false
+end
+
+local function myShop()
+    for _, s in ipairs(CS:GetTagged("Shop")) do
+        if s:GetAttribute("Owner") == LP.UserId then return s end
+    end
+end
+
+local holdCache = { at = -999, v = false }
+local function guiVisible(d, root)
+    local g = d
+    while g and g ~= root do
+        if g:IsA("GuiObject") and not g.Visible then return false end
+        if g:IsA("ScreenGui") and not g.Enabled then return false end
+        g = g.Parent
+    end
+    return true
+end
+local function isHolding()
+    if os.clock() - holdCache.at < 0.3 then return holdCache.v end
+    holdCache.at = os.clock()
+    local held = false
+
+    local pg = LP:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        for _, d in ipairs(pg:GetDescendants()) do
+            if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Text:upper() == "PUT DOWN"
+                and guiVisible(d, pg) and d.AbsoluteSize.X > 0 then
+                held = true
+                break
+            end
+        end
+    end
+
+    if not held then
+        for _, o in ipairs({ LP, LP.Character }) do
+            for k, v in pairs(o:GetAttributes()) do
+                local lk = tostring(k):lower()
+                if (lk:find("hold") or lk:find("carry") or lk:find("held")) and v and v ~= 0 and v ~= "" then
+                    held = true
+                end
+            end
+        end
+    end
+
+    holdCache.v = held
+    return held
+end
+
+local loopGuard = {}
+local function blocked(name)
+    local g = loopGuard[name]
+    return g ~= nil and os.clock() < g.block
+end
+local function noteAction(name, limit, window, backoff)
+    local g = loopGuard[name]
+    if not g then
+        g = { times = {}, block = 0 }
+        loopGuard[name] = g
+    end
+    local now = os.clock()
+    g.times[#g.times + 1] = now
+    while #g.times > 0 and now - g.times[1] > window do table.remove(g.times, 1) end
+    if #g.times >= limit then
+        g.block = now + backoff
+        g.times = {}
+    end
+end
+
+local grabCooldown = setmetatable({}, { __mode = "k" })
+local GRAB_COOLDOWN = 3
+local function grabFromShelf(shop)
+    local shelf = shop:FindFirstChild("Stations") and shop.Stations:FindFirstChild("ToFixShelf")
+    if not shelf then return false end
+    if blocked("grab") then return false end
+
+    for _, phone in ipairs(shelf:GetChildren()) do
+        if phone.Name == "ToFixPhone" then
+            local last = grabCooldown[phone]
+            if not last or os.clock() - last > GRAB_COOLDOWN then
+                local box = phone:FindFirstChild("Box")
+                local grab = box and box:FindFirstChild("Grab")
+                if box and grab and grab.Enabled then
+                    grabCooldown[phone] = os.clock()
+                    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = CFrame.new(box.Position + Vector3.new(0, 3, 2))
+                        task.wait(0.2)
+                        fireproximityprompt(grab)
+                        noteAction("grab", 4, 20, 15)
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function mySpots(shop)
+    local list = {}
+    for _, p in ipairs(CS:GetTagged("BenchSpot")) do
+        if p:IsA("BasePart") and p:IsDescendantOf(shop) and type(p:GetAttribute("Index")) == "number" then
+            list[#list + 1] = p
+        end
+    end
+    table.sort(list, function(a, b) return a:GetAttribute("Index") < b:GetAttribute("Index") end)
+    return list
+end
+local function goNear(part)
+    local c = LP.Character
+    local r = c and c:FindFirstChild("HumanoidRootPart")
+    if r and part then r.CFrame = CFrame.new(part.Position + Vector3.new(0, 4, 0)) end
+end
+local function press(pr)
+    pcall(function()
+        pr.MaxActivationDistance = math.max(pr.MaxActivationDistance, 20)
+        pr.RequiresLineOfSight = false
+    end)
+    local trig = false
+    local con = pr.Triggered:Connect(function() trig = true end)
+    if fireproximityprompt then pcall(fireproximityprompt, pr) end
+    task.wait(0.4)
+    if not trig then
+        pcall(function()
+            pr:InputHoldBegin()
+            task.wait((pr.HoldDuration or 0) + 0.25)
+            pr:InputHoldEnd()
+        end)
+        task.wait(0.3)
+    end
+    con:Disconnect()
+end
+local function fixPrompt(sp)
+    local pr = sp:FindFirstChild("Fix")
+    if pr and pr:IsA("ProximityPrompt") then return pr end
+    for _, d in ipairs(sp:GetDescendants()) do
+        if d:IsA("ProximityPrompt") and d.Name == "Fix" then return d end
+    end
+end
+
+local orderCooldown = setmetatable({}, { __mode = "k" })
+local orderCache = { at = 0, list = {} }
+local ORDER_COOLDOWN = 4
+local ORDER_PAD = 40
+
+local function promptPos(pr)
+    local p = pr.Parent
+    if p:IsA("BasePart") then return p.Position end
+    if p:IsA("Attachment") then return p.WorldPosition end
+    if p:IsA("Model") then return p:GetPivot().Position end
+    local part = p:FindFirstAncestorWhichIsA("BasePart")
+    return part and part.Position
+end
+
+local function inMyShop(shop, pos)
+    local ok, cf, size = pcall(shop.GetBoundingBox, shop)
+    if not ok or not cf then return true end
+    local rel = cf:PointToObjectSpace(pos)
+    local h = size / 2 + Vector3.new(ORDER_PAD, ORDER_PAD, ORDER_PAD)
+    return math.abs(rel.X) <= h.X and math.abs(rel.Y) <= h.Y and math.abs(rel.Z) <= h.Z
+end
+
+local function takeOrder(shop)
+    if blocked("order") then return false end
+    if os.clock() - orderCache.at > 3 then
+        orderCache.at = os.clock()
+        orderCache.list = {}
+        local root = workspace:FindFirstChild("CounterPhones") or shop
+        for _, d in ipairs(root:GetDescendants()) do
+            if d:IsA("ProximityPrompt") and d.Name == "Counter" then
+                local pos = promptPos(d)
+                local mine = pos and inMyShop(shop, pos)
+                if mine then
+                    orderCache.list[#orderCache.list + 1] = d
+                end
+            end
+        end
+    end
+
+    for _, pr in ipairs(orderCache.list) do
+        if pr.Parent and pr.Enabled and os.clock() - (orderCooldown[pr] or -999) > ORDER_COOLDOWN then
+            local pos = promptPos(pr)
+            local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if pos and hrp then
+                orderCooldown[pr] = os.clock()
+                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+                task.wait(0.4)
+                press(pr)
+                noteAction("order", 4, 20, 15)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local lastReq = {}
+local function pressFixAtBench(shop)
+    local spots = mySpots(shop)
+    if #spots == 0 then return false end
+
+    for _, sp in ipairs(spots) do
+        if sp:GetAttribute("Tech") == nil then
+            local idx = sp:GetAttribute("Index")
+            local customer = sp:GetAttribute("Customer")
+            local waiting = sp:GetAttribute("Waiting")
+
+            if customer ~= nil and waiting and (lastReq[idx] or 0) < os.clock() - 6 then
+                lastReq[idx] = os.clock()
+                local pr = fixPrompt(sp)
+                if pr then
+                    goNear(sp)
+                    task.wait(1.2)
+                    press(pr)
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local holdStuckSince, lastHoldNotify = nil, -999
+local HOLD_NOTIFY_AFTER = 8
+local HOLD_NOTIFY_EVERY = 30
+
+local function doFixCycle(shop)
+    if not isHolding() then
+        holdStuckSince = nil
+        if takeOrder(shop) then return true end
+        local grabbed = grabFromShelf(shop)
+        local fixed = pressFixAtBench(shop)
+        return grabbed or fixed
+    end
+
+    local fixed = pressFixAtBench(shop)
+    if fixed then
+        holdStuckSince = nil
+    else
+        holdStuckSince = holdStuckSince or os.clock()
+        if os.clock() - holdStuckSince > HOLD_NOTIFY_AFTER and os.clock() - lastHoldNotify > HOLD_NOTIFY_EVERY then
+            lastHoldNotify = os.clock()
+            notify("Finish the tutorial first, then re-run the script.")
+            genv.FMP_STOP = true
+        end
+    end
+    return fixed
+end
+
+local function closeBench()
+    local pg = LP.PlayerGui
+    pcall(function()
+        local res = pg.GameUI.Bench:FindFirstChild("Result")
+        if res then
+            for _, d in ipairs(res:GetDescendants()) do
+                if d:IsA("GuiButton") and d.Visible then
+                    if firesignal then
+                        pcall(firesignal, d.MouseButton1Click)
+                        pcall(firesignal, d.Activated)
+                    end
+                end
+            end
+        end
+    end)
+    task.wait(0.5)
+    if typeof(Bench.leave) == "function" then pcall(Bench.leave) end
+    task.wait(0.6)
+end
+
+local SELL_INTERVAL = 2
+local SELL_BACKOFF = 10
+local nextSellAt, sellFullUntil = 0, 0
+
+local function shelfCount(shop)
+    local shelf = shop:GetAttribute("Shelf")
+    if type(shelf) ~= "string" or shelf == "" then return 0 end
+    local n = 0
+    for _ in shelf:gmatch("[^,]+") do n = n + 1 end
+    return n
+end
+
+local function trySell(shop)
+    if genv.FMP_SELL == false then return end
+    if not NetworkClient then return end
+    if os.clock() < nextSellAt or os.clock() < sellFullUntil then return end
+    nextSellAt = os.clock() + SELL_INTERVAL
+
+    local before = shelfCount(shop)
+    pcall(function() NetworkClient.ListPhone.Fire({ Step = 6, Trophy = 1 }) end)
+    task.wait(0.5)
+
+    if shelfCount(shop) <= before then
+        sellFullUntil = os.clock() + SELL_BACKOFF
+    end
+end
+
+local tradeState = {
+    bias = 0.05,
+    ledger = {},
+    lastSeenDone = setmetatable({}, { __mode = "k" }),
+    lastDeskPhone = setmetatable({}, { __mode = "k" }),
+}
+local CFG_TRADE = {
+    BiasLearnRate = 0.15,
+    BiasMin = -0.25,
+    BiasMax = 0.25,
+    DriftScanStep = 0.015,
+    DriftScanHorizon = 6.0,
+}
+
+local function nextCrossingNoDrift(go, centre, ranNow)
+    local sweep = go.sweep
+    local period = 2 * sweep
+    local phase = ranNow % period
+    local tRise = centre * sweep
+    local tFall = (2 - centre) * sweep
+    local function aheadOffset(tCrossing)
+        local delta = tCrossing - phase
+        if delta < 0 then delta = delta + period end
+        return delta
+    end
+    local offset = math.min(aheadOffset(tRise), aheadOffset(tFall))
+    return ranNow + offset
+end
+
+local function nextCrossingWithDrift(go, centre, ranNow)
+    local step = CFG_TRADE.DriftScanStep
+    local horizon = CFG_TRADE.DriftScanHorizon
+    local inStart, inEnd = nil, nil
+    local t = 0
+    while t <= horizon do
+        local ran = ranNow + t
+        local markerPos = TradeIns.marker(go, ran)
+        local mid = TradeIns.middle(go, centre, ran)
+        if math.abs(markerPos - mid) <= go.sweet then
+            if not inStart then inStart = t end
+            inEnd = t
+        elseif inStart then
+            break
+        end
+        t = t + step
+    end
+    if inStart then return ranNow + (inStart + inEnd) / 2 end
+    return nextCrossingNoDrift(go, centre, ranNow)
+end
+
+local function predictFireAt(rarity, attemptIndex, temperIndex, centre, ranNow)
+    local go = TradeIns.go(rarity, attemptIndex, temperIndex)
+    local targetRan
+    if go.drift and go.drift > 0 then
+        targetRan = nextCrossingWithDrift(go, centre, ranNow)
+    else
+        targetRan = nextCrossingNoDrift(go, centre, ranNow)
+    end
+    return targetRan - tradeState.bias, targetRan, go
+end
+
+local function recordTradeOutcome(zone)
+    local last = tradeState.ledger[#tradeState.ledger]
+    if not last or last.zone ~= nil then return end
+    last.zone = zone
+    local nudge
+    if zone == 1 then
+        nudge = -tradeState.bias * 0.1
+    else
+        nudge = CFG_TRADE.BiasLearnRate * 0.05
+    end
+    tradeState.bias = math.clamp(tradeState.bias + nudge, CFG_TRADE.BiasMin, CFG_TRADE.BiasMax)
+end
+
+local function readOffer(shop)
+    local phone = shop:GetAttribute("Trade")
+    local ask = shop:GetAttribute("TradeAsk")
+    if type(phone) ~= "string" or type(ask) ~= "number" then return nil end
+    return {
+        phone = phone,
+        ask = ask,
+        first = shop:GetAttribute("TradeFirst") or ask,
+        line = shop:GetAttribute("TradeLine") or 1,
+        goes = shop:GetAttribute("TradeGoes") or 0,
+        done = shop:GetAttribute("TradeDone") or 0,
+        centre = shop:GetAttribute("TradeCentre") or 0.5,
+        haggleAt = shop:GetAttribute("TradeHaggleAt"),
+        zone = shop:GetAttribute("TradeZone") or 0,
+    }
+end
+
+local function handleTradeAttempt(shop, offer, rarity)
+    NetworkClient.TradeHaggleStart.Fire()
+
+    local haggleAt, waited = nil, 0
+    while waited < 2 do
+        haggleAt = shop:GetAttribute("TradeHaggleAt")
+        if haggleAt then break end
+        task.wait(0.05)
+        waited = waited + 0.05
+    end
+    if not haggleAt then return end
+
+    local temperIndex = TradeIns.temper(offer.line)
+    local ranNow = workspace:GetServerTimeNow() - haggleAt
+    local fireAt, targetRanNoBias = predictFireAt(rarity, offer.done, temperIndex, offer.centre, ranNow)
+
+    table.insert(tradeState.ledger, { targetRan = targetRanNoBias, firedRan = fireAt, zone = nil })
+
+    local nowRan = workspace:GetServerTimeNow() - haggleAt
+    task.wait(math.max(0, fireAt - nowRan))
+
+    NetworkClient.TradeHaggleStop.Fire()
+    task.wait(0.4)
+    recordTradeOutcome(shop:GetAttribute("TradeZone") or 0)
+end
+
+local function maybeBuy(shop, offer)
+    local cash = ServerState.cash()
+    if type(offer.ask) == "number" and offer.ask <= cash then
+        NetworkClient.TradeBuy.Fire()
+    end
+end
+
+local function tradeDesk(shop)
+    local st = shop:FindFirstChild("Stations")
+    return st and st:FindFirstChild("TradeDesk")
+end
+
+local function tryTrade(shop)
+    if genv.FMP_TRADE == false then return false end
+    if not (TradeIns and NetworkClient and ServerState) then return false end
+    local offer = readOffer(shop)
+    if not offer then return false end
+    if tradeState.lastSeenDone[shop] == offer.done then return false end
+    tradeState.lastSeenDone[shop] = offer.done
+
+    if tradeState.lastDeskPhone[shop] ~= offer.phone then
+        tradeState.lastDeskPhone[shop] = offer.phone
+        local desk = tradeDesk(shop)
+        if desk then goNear(desk) task.wait(0.3) end
+        notify("Trading (" .. tostring(offer.phone) .. ")...")
+    end
+    if offer.goes > 0 then
+        local phoneInfo = Phones and Phones.get(offer.phone)
+        local rarity = phoneInfo and phoneInfo.rarity or 1
+        handleTradeAttempt(shop, offer, rarity)
+    else
+        maybeBuy(shop, offer)
+    end
+    return true
+end
+
+local function callable(f)
+    if type(f) == "function" then return true end
+    if type(f) == "table" then
+        local mt = getmetatable(f)
+        return type(mt) == "table" and mt.__call ~= nil
+    end
+    return false
+end
+
+local shopFn, shopFindAt = nil, 0
+local function validShopFn(f)
+    if not callable(f) then return false end
+    local ok, s = pcall(f)
+    return ok and type(s) == "table" and type(s.parcels) == "table" and s.jobs ~= nil
+end
+
+local function findShopFn()
+    if ServerState then
+        local ok, f = pcall(function() return ServerState.shop end)
+        if ok and validShopFn(f) then return f end
+    end
+    local mods = {}
+    if getloadedmodules then
+        for _, m in ipairs(getloadedmodules()) do mods[#mods + 1] = m end
+    else
+        local cf = LP:FindFirstChild("PlayerScripts") and LP.PlayerScripts:FindFirstChild("Client")
+        if cf then
+            for _, d in ipairs(cf:GetDescendants()) do
+                if d:IsA("ModuleScript") then mods[#mods + 1] = d end
+            end
+        end
+    end
+    for _, m in ipairs(mods) do
+        local ok, mod = pcall(require, m)
+        if ok and type(mod) == "table" then
+            local okf, f = pcall(rawget, mod, "shop")
+            if okf and validShopFn(f) then return f end
+        end
+    end
+end
+
+local function getShop()
+    if shopFn then
+        local ok, s = pcall(shopFn)
+        if ok and type(s) == "table" then return s end
+        shopFn = nil
+    end
+    if os.clock() < shopFindAt then return nil end
+    shopFindAt = os.clock() + 10
+    local f = findShopFn()
+    if f then
+        shopFn = f
+        local ok, s = pcall(shopFn)
+        if ok and type(s) == "table" then return s end
+    end
+    return nil
+end
+
+local function posOf(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Attachment") then return inst.WorldPosition end
+    if inst:IsA("Model") then return inst:GetPivot().Position end
+    return nil
+end
+
+local function carryPrompt(shop)
+    local crate = shop:FindFirstChild("OrderCrate", true)
+    local p = crate and crate:FindFirstChild("CrateCarry", true)
+    if p and p:IsA("ProximityPrompt") and p.Enabled then return p end
+    return nil
+end
+
+local function dropPrompt(shop)
+    for _, name in ipairs({ "OrderBay", "OrderKerb" }) do
+        local part = shop:FindFirstChild(name, true)
+        local p = part and part:FindFirstChild("CrateDrop")
+        if p and p:IsA("ProximityPrompt") and p.Enabled then return p end
+    end
+    return nil
+end
+
+local function pickOffer(now)
+    local bestKey, bestScore
+    pcall(function()
+        for k, o in ipairs(Contracts.offers(now, LP.UserId)) do
+            if genv.FMP_ORDER_PICK == "first" then
+                bestKey = k
+                break
+            end
+            local sz = Contracts.Sizes[o.size]
+            local score = sz and (sz.phones * sz.bonus) or 0
+            if not bestScore or score > bestScore then
+                bestKey, bestScore = k, score
+            end
+        end
+    end)
+    return bestKey or 1
+end
+
+local lastBigOrderTake = 0
+local function tryBigOrder(shop)
+    if genv.FMP_BIGORDER == false then return false end
+    if not Contracts then return false end
+    if blocked("bigorder") then return false end
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if not shop then return false end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local carry = char:GetAttribute("Carrying")
+
+    if carry == "crate" then
+        local drop = dropPrompt(shop)
+        if drop and hrp then
+            local pos = posOf(drop.Parent)
+            if pos then
+                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 2))
+                task.wait(0.3)
+                press(drop)
+                noteAction("bigorder", 3, 20, 20)
+                task.wait(0.6)
+                return true
+            end
+        end
+        return false
+    end
+
+    if carry ~= nil then return false end
+
+    local pick = carryPrompt(shop)
+    if pick and hrp then
+        local pos = posOf(pick.Parent)
+        if pos then
+            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 2))
+            task.wait(0.3)
+            press(pick)
+            noteAction("bigorder", 3, 20, 20)
+            task.wait(0.6)
+            return true
+        end
+    end
+
+    local save = getShop()
+    if save and save.contract then return false end
+
+    local now = workspace:GetServerTimeNow()
+    if save and (tonumber(save.contractNext) or 0) > now then return false end
+
+    local cooldown = save and 6 or 15
+    if os.clock() - lastBigOrderTake < cooldown then return false end
+    lastBigOrderTake = os.clock()
+
+    local key = pickOffer(now)
+    pcall(function() NetworkClient.TakeContract.Fire(key) end)
+    noteAction("bigorder", 3, 20, 20)
+    task.wait(0.8)
+    return true
+end
+
+do
+    local _tbo = tryBigOrder
+    tryBigOrder = function(...)
+        local ok, r = pcall(_tbo, ...)
+        if not ok then return false end
+        return r
+    end
+end
+
+local PARCEL_INTERVAL = 3
+local PARCEL_PAUSE = 120
+local nextParcelAt, parcelPausedUntil, parcelFails = 0, 0, 0
+
+local function parcelCount()
+    local s = getShop()
+    if s and type(s.parcels) == "table" then return #s.parcels end
+    return nil
+end
+
+local function tryParcel()
+    if genv.FMP_PARCEL == false then return false end
+    if not (NetworkClient and NetworkClient.OpenParcel and NetworkClient.OpenAllParcels) then return false end
+    if os.clock() < nextParcelAt or os.clock() < parcelPausedUntil then return false end
+    nextParcelAt = os.clock() + PARCEL_INTERVAL
+
+    local n = parcelCount()
+    if not n or n == 0 then return false end
+
+    if n > 1 then
+        pcall(NetworkClient.OpenAllParcels.Fire)
+    else
+        pcall(NetworkClient.OpenParcel.Fire, 1)
+    end
+
+    local t0, after = os.clock(), n
+    while os.clock() - t0 < 5 do
+        task.wait(0.25)
+        after = parcelCount() or n
+        if after < n then break end
+    end
+
+    if after < n then
+        parcelFails = 0
+        return true
+    end
+    parcelFails = parcelFails + 1
+    if parcelFails >= 2 then
+        parcelFails = 0
+        parcelPausedUntil = os.clock() + PARCEL_PAUSE
+    end
+    return false
+end
+
+local function findStockLayouts()
+    local res = {}
+    for _, t in ipairs(getgc(true)) do
+        if type(t) == "table" then
+            pcall(function()
+                local things = rawget(t, "things")
+                local cells = rawget(t, "cells")
+                local taken = rawget(t, "taken")
+                if type(things) == "table" and type(cells) == "table" and type(taken) == "table" and #things > 0 then
+                    local first = things[1]
+                    local lead = type(first) == "table" and first.lead
+                    if type(lead) == "table" and type(lead.drag) == "function" then
+                        res[#res + 1] = t
+                    end
+                end
+            end)
+        end
+    end
+    return res
+end
+
+local function solveStockLayout(layout)
+    for i, th in ipairs(layout.things) do
+        local lead = th.lead
+        if type(lead) == "table" and type(lead.drag) == "function" and type(lead.released) == "function" then
+            local idx
+            for c = 1, #layout.cells do
+                if not layout.taken[c] then
+                    idx = c
+                    break
+                end
+            end
+            if not idx then break end
+            local cell = layout.cells[idx]
+            lead.drag(Vector3.new(cell.X, 0, cell.Z))
+            task.wait(0.08)
+            lead.released()
+            task.wait(0.35)
+        end
+    end
+end
+
+local function driveStock()
+    local did = false
+    for _ = 1, 8 do
+        for _, l in ipairs(findStockLayouts()) do
+            local ok = pcall(solveStockLayout, l)
+            if ok then did = true end
+        end
+        if did then break end
+        task.wait(0.3)
+    end
+    return did
+end
+
+local function restockDue()
+    local s = getShop()
+    if not s then return nil end
+    if ShopSave and type(ShopSave.shelfDue) == "function" then
+        local ok, r = pcall(ShopSave.shelfDue, s, os.time())
+        if ok then return r and true or false end
+    end
+    return nil
+end
+
+local restockNextAt = 0
+local function tryRestock()
+    if genv.FMP_RESTOCK == false or not getgc then return false end
+    if os.clock() < restockNextAt or blocked("restock") then return false end
+    if isWorking() then return false end
+
+    local due = restockDue()
+    if due == false then return false end
+    restockNextAt = os.clock() + (due and 4 or 20)
+
+    pcall(Bench.stock)
+
+    local opened, t0 = false, os.clock()
+    while os.clock() - t0 < 2.5 do
+        if stepKey() == "stock" or isWorking() then
+            opened = true
+            break
+        end
+        task.wait(0.1)
+    end
+    if not opened then return false end
+
+    noteAction("restock", 4, 90, 60)
+    driveStock()
+
+    local t1 = os.clock()
+    while os.clock() - t1 < 10 do
+        if stepKey() ~= "stock" and not isWorking() then break end
+        task.wait(0.2)
+    end
+    if stepKey() == "stock" or isWorking() then
+        pcall(Bench.leave)
+        task.wait(0.6)
+        restockNextAt = os.clock() + 30
+    end
+    return true
+end
+
+local UNLOCK_INTERVAL = 3
+local UNLOCK_RETRY = 30
+local UNLOCK_SKIP = { "Theme" }
+local nextUnlockAt = 0
+local unlockTried = {}
+local priceOf = {}
+
+do
+    local function collect(t, depth, seen)
+        if type(t) ~= "table" or depth > 4 or seen[t] then return end
+        seen[t] = true
+        local k, c = rawget(t, "key"), rawget(t, "cost")
+        if type(k) == "string" and type(c) == "number" and not priceOf[k] then priceOf[k] = c end
+        for _, v in pairs(t) do
+            if type(v) == "table" then collect(v, depth + 1, seen) end
+        end
+    end
+    pcall(function() collect(require(ReplicatedStorage.Shared.Economy), 0, {}) end)
+end
+
+local function cashNow()
+    if ServerState then
+        local ok, c = pcall(ServerState.cash)
+        if ok and type(c) == "number" then return c end
+    end
+    local ls = LP:FindFirstChild("leaderstats")
+    local v = ls and ls:FindFirstChild("Cash")
+    return v and v.Value or 0
+end
+
+local function parsePrice(txt)
+    local num, suf = txt:match("^%$([%d%.]+)([KkMm]?)$")
+    if not num then return nil end
+    local v = tonumber(num)
+    suf = suf:lower()
+    if suf == "k" then v = v * 1e3 elseif suf == "m" then v = v * 1e6 end
+    return v
+end
+
+local function unlockSkipped(key)
+    for _, w in ipairs(UNLOCK_SKIP) do
+        if key:sub(1, #w) == w then return true end
+    end
+    return false
+end
+
+local function unlockCandidates(shop)
+    local list = {}
+    local pads = shop:FindFirstChild("Pads")
+    local signs = workspace:FindFirstChild("PadSigns")
+    if not pads or not signs then return list end
+    local cash = cashNow()
+
+    for _, sign in ipairs(signs:GetChildren()) do
+        if sign:IsA("BasePart") then
+            local pad, bd
+            for _, p in ipairs(pads:GetChildren()) do
+                local d = (p.Position - sign.Position).Magnitude
+                if not bd or d < bd then pad, bd = p, d end
+            end
+            local key = pad and bd < 4 and pad:GetAttribute("Key")
+            if key and not unlockSkipped(key) then
+                local isLevel, price = false, nil
+                for _, t in ipairs(sign:GetDescendants()) do
+                    if t:IsA("TextLabel") then
+                        if t.Text:upper():find("^LEVEL") then isLevel = true end
+                        price = price or parsePrice(t.Text)
+                    end
+                end
+                local cost = priceOf[key] or price
+                local ready = (not isLevel) and cost and cash >= cost
+                if ready and os.clock() - (unlockTried[key] or -999) > UNLOCK_RETRY then
+                    list[#list + 1] = { key = key, pad = pad, sign = sign, cost = cost }
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.cost < b.cost end)
+    return list
+end
+
+local function tryUnlock(shop)
+    if genv.FMP_UNLOCK == false then return false end
+    if os.clock() < nextUnlockAt then return false end
+    nextUnlockAt = os.clock() + UNLOCK_INTERVAL
+
+    local offer = readOffer(shop)
+    if offer and offer.goes > 0 then return false end
+
+    local c = unlockCandidates(shop)[1]
+    if not c then return false end
+
+    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local back = hrp.CFrame
+    unlockTried[c.key] = os.clock()
+    local before = cashNow()
+
+    if firetouchinterest then
+        pcall(function()
+            firetouchinterest(hrp, c.pad, 0)
+            task.wait()
+            firetouchinterest(hrp, c.pad, 1)
+        end)
+    end
+    hrp.CFrame = c.pad.CFrame + Vector3.new(0, 3, 0)
+    task.wait(1.3)
+
+    local bought = (not c.sign.Parent) or cashNow() <= before - c.cost * 0.8
+    if hrp.Parent then hrp.CFrame = back end
+
+    if bought then
+        notify("Unlocked " .. c.key)
+    end
+    return true
+end
+
+local function closeLotsIfOpen()
+    local pg = LP.PlayerGui
+    local lots = pg:FindFirstChild("GamePanels") and pg.GamePanels:FindFirstChild("Lots")
+    local scale = lots and lots:FindFirstChild("Scale")
+    if not (scale and scale.Scale > 0.5) then return end
+
+    local hit = lots:FindFirstChild("Header")
+        and lots.Header:FindFirstChild("Close")
+        and lots.Header.Close:FindFirstChild("Hit")
+    if not hit then return end
+
+    local function fireAll(signal)
+        local ok, conns = pcall(getconnections, signal)
+        if ok then
+            for _, c in ipairs(conns) do pcall(function() c:Fire() end) end
+        end
+    end
+    fireAll(hit.MouseButton1Click)
+    fireAll(hit.Activated)
+end
+
+do
+    local pg = LP.PlayerGui
+    local lots = pg:FindFirstChild("GamePanels") and pg.GamePanels:FindFirstChild("Lots")
+    local scale = lots and lots:FindFirstChild("Scale")
+    if scale then
+        scale:GetPropertyChangedSignal("Scale"):Connect(function()
+            if alive() then closeLotsIfOpen() end
+        end)
+    end
+end
+
+local OWN_STEPS = { stock = true }
+local OWN_TIMEOUT = 15
+
+local FMP = {
+    Version = "v1.0",
+    Status = { auto = "Stopped", train = "Stopped" },
+    OnStatus = nil, -- function(kind, text): kind is "auto" or "train"
+}
+
+local function emit(kind, text)
+    FMP.Status[kind] = text
+    local cb = FMP.OnStatus
+    if cb then pcall(cb, kind, text) end
+end
+
+local autoRunning = false
+
+local function applyAutoStatus(text)
+    emit("auto", text)
+end
+
+task.spawn(function()
+    local fails, lastKey, same = {}, nil, 0
+    local wasWorking = false
+    local ownSince = nil
+    while alive() do
+        if not autoRunning then
+            task.wait(0.3)
+        else
+            pcall(closeLotsIfOpen)
+
+            local working = isWorking() and getStep()
+            local ownKey = working and stepKey() or nil
+
+            if ownKey and OWN_STEPS[ownKey] then
+                ownSince = ownSince or os.clock()
+                if ownKey == "stock" and genv.FMP_RESTOCK ~= false and getgc then
+                    pcall(driveStock)
+                end
+                if os.clock() - ownSince > OWN_TIMEOUT then
+                    pcall(Bench.leave)
+                    ownSince = nil
+                    task.wait(1)
+                end
+                task.wait(0.5)
+            elseif working then
+                ownSince = nil
+                wasWorking = true
+                local ok2, res = pcall(Autoplay.run, api, 4, nil)
+                if not ok2 then
+                    task.wait(1.5)
+                else
+                    local why = tostring(res.why)
+                    local k = res.step and res.step.key or "?"
+                    local btn = why:match("^needs a click on a button: (%w+)")
+                    if btn == "case" then
+                        jitter(0.4, 0.9)
+                        if not chooseCase() then
+                            fails.case = (fails.case or 0) + 1
+                        end
+                    elseif btn then
+                        jitter(0.4, 0.9)
+                        pcall(Hud.pressMain)
+                        if not waitStepChange(btn, 3) then
+                            fails[btn] = (fails[btn] or 0) + 1
+                        end
+                    elseif why:find("STUCK") or why:find("no autoplay") then
+                        fails[k] = (fails[k] or 0) + 1
+                        task.wait(1)
+                    elseif why:find("no step") then
+                        task.wait(1)
+                    end
+
+                    local cur = stepKey()
+                    if cur == lastKey then same = same + 1 else lastKey, same = cur, 0 end
+                    if cur and SWEEP[cur] and alive() then
+                        local rem = remaining(SWEEP[cur])
+                        for _, it in ipairs(rem) do
+                            if not alive() or stepKey() ~= cur then break end
+                            sweepItem(it)
+                        end
+                    end
+                    if cur and same >= 10 then
+                        fails[cur] = (fails[cur] or 0) + 1
+                        same = 0
+                    end
+                    for key, n in pairs(fails) do
+                        if n >= 4 then
+                            notify("Stopped: " .. key .. " keeps failing")
+                            autoRunning = false
+                            applyAutoStatus("Stopped (error)")
+                        end
+                    end
+                end
+            else
+                ownSince = nil
+                if wasWorking then
+                    wasWorking = false
+                    lastKey, same = nil, 0
+                    task.wait(1.5)
+                    pcall(closeBench)
+
+                    local t0 = os.clock()
+                    while os.clock() - t0 < 3 do
+                        pcall(closeLotsIfOpen)
+                        task.wait(0.25)
+                    end
+                end
+
+                local shop = myShop()
+                if shop then
+                    trySell(shop)
+                    local didTrade = tryTrade(shop)
+                    if not didTrade then
+                        local didBigOrder = tryBigOrder(shop)
+                        if not didBigOrder then
+                            local didRestock = false
+                            if not isHolding() then
+                                pcall(tryParcel)
+                                local okR, resR = pcall(tryRestock)
+                                didRestock = okR and resR or false
+                            end
+                            if not didRestock and not tryUnlock(shop) then
+                                doFixCycle(shop)
+                            end
+                        end
+                    end
+                end
+                task.wait(0.5)
+            end
+        end
+    end
+end)
+
+-- ===== Staff: Auto Train Technician =====
+local trainOn = false
+local trainOrder = "Cheapest"
+local trainBlocked = {}
+local trainCostSeen = {}
+local trainLastStatus = ""
+
+local function trainSay(t)
+    if t == trainLastStatus then return end
+    trainLastStatus = t
+    emit("train", t)
+end
+
+local function techList()
+    local s = getShop()
+    local t = s and s.technicians
+    return type(t) == "table" and t or nil
+end
+
+local function fmtMoney(n)
+    if n >= 1e6 then return ("%.1fM"):format(n / 1e6) end
+    if n >= 1e3 then return ("%.1fK"):format(n / 1e3) end
+    return tostring(math.floor(n))
+end
+
+-- snapshot of everything that can make a skipped technician trainable again
+local function trainSig()
+    local s = getShop()
+    if not s then return "" end
+    local parts = { tostring(s.level) }
+    for i, t in ipairs(s.technicians or {}) do
+        parts[#parts + 1] = i .. ":" .. tostring(t.level) .. ":" .. tostring(t.watched)
+    end
+    return table.concat(parts, "|")
+end
+
+task.spawn(function()
+    local blockedSig
+    while alive() do
+        RunService.Heartbeat:Wait()
+        if trainOn then
+            local techs = techList()
+            local net = NetworkClient and NetworkClient.TrainStaff
+            if not (techs and net and net.Fire) then
+                trainSay("Waiting for shop data")
+            else
+                if blockedSig and trainSig() ~= blockedSig then
+                    trainBlocked, blockedSig = {}, nil
+                end
+
+                local c = {}
+                for i, t in ipairs(techs) do
+                    if type(t) == "table" and type(t.level) == "number" and not trainBlocked[i] then
+                        c[#c + 1] = { i = i, lv = t.level }
+                    end
+                end
+                table.sort(c, function(a, b)
+                    if trainOrder == "Most Expensive" then return a.lv > b.lv end
+                    return a.lv < b.lv
+                end)
+
+                local pick = c[1]
+                if not pick then
+                    trainSay("Nothing trainable (max level, not watched yet, or shop level cap)")
+                else
+                    local cash = cashNow()
+                    local known = trainCostSeen[pick.lv]
+                    if known and cash < known then
+                        trainSay(("Waiting for cash (need ~$%s)"):format(fmtMoney(known)))
+                    else
+                        pcall(net.Fire, pick.i)
+
+                        -- wait for the server to confirm the level change, no fixed delay
+                        local t0, lvAfter = os.clock(), nil
+                        repeat
+                            RunService.Heartbeat:Wait()
+                            local after = techList()
+                            lvAfter = after and after[pick.i] and after[pick.i].level
+                        until (type(lvAfter) == "number" and lvAfter > pick.lv) or os.clock() - t0 > 2 or not alive()
+
+                        if type(lvAfter) == "number" and lvAfter > pick.lv then
+                            local spent = cash - cashNow()
+                            if spent > 0 then
+                                trainCostSeen[pick.lv] = math.max(trainCostSeen[pick.lv] or 0, spent)
+                            end
+                            trainSay(("Technician %d: Lv %d -> %d (cost ~$%s)")
+                                :format(pick.i, pick.lv, lvAfter, fmtMoney(trainCostSeen[pick.lv] or 0)))
+                        else
+                            trainBlocked[pick.i] = true
+                            blockedSig = trainSig()
+                            trainSay(("Technician %d skipped (not ready or shop level cap)"):format(pick.i))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+
+-- ===== Public API (the GUI file talks to the logic only through this) =====
+local OPTION_FLAGS = {
+    sell     = "FMP_SELL",
+    trade    = "FMP_TRADE",
+    bigorder = "FMP_BIGORDER",
+    restock  = "FMP_RESTOCK",
+    parcel   = "FMP_PARCEL",
+    upgrade  = "FMP_UNLOCK",
+}
+
+function FMP.SetAuto(v)
+    autoRunning = v and true or false
+    applyAutoStatus(autoRunning and "Running" or "Stopped")
+end
+
+function FMP.SetOption(name, v)
+    local flag = OPTION_FLAGS[name]
+    if flag then genv[flag] = v and true or false end
+end
+
+function FMP.SetTrain(v)
+    trainOn = v and true or false
+    if not trainOn then trainSay("Stopped") end
+end
+
+function FMP.SetTrainOrder(v)
+    if v == "Cheapest" or v == "Most Expensive" then trainOrder = v end
+end
+
+local unloaded = false
+function FMP.Unload()
+    if unloaded then return end
+    unloaded = true
+    autoRunning = false
+    trainOn = false
+    genv.FMP_STOP = true
+    for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    if _G.FIXMYPHONE_Unload == FMP.Unload then _G.FIXMYPHONE_Unload = nil end
+end
+_G.FIXMYPHONE_Unload = FMP.Unload
+
+return FMP
