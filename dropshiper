@@ -1,0 +1,729 @@
+local RS = game:GetService("ReplicatedStorage")
+local Shared = RS:WaitForChild("ETM"):WaitForChild("Shared")
+local Net = require(RS:WaitForChild("ETM"):WaitForChild("Client"):WaitForChild("Net"))
+local Products = require(Shared.Products)
+local Progression = require(Shared.Progression)
+
+local CASH_BUFFER_PCT = 0.20
+local LOOP_INTERVAL    = 15
+local MAX_SAMPLE_SPEND = 0.5
+local AD_BUDGET_SPEND_PCT = 0.3
+
+local MIN_DEMAND = 0.4
+local COMP_PENALTY_MULT = 1.4
+local BASE_BUDGET_TIER_IDX = 2
+
+local COMP_TIER_PENALTY_HIGH = 0.75
+local COMP_TIER_PENALTY_MED  = 0.5
+local BROAD_AUDIENCE_TIER_PENALTY = 1
+local MIN_CONV_SAMPLE_CLICKS = 20
+local LOW_CONV_RATIO = 0.5
+
+local REL_PENALTY_MULT = 0.6
+local MIN_REL = 0.5
+local SAMPLE_NOTE_PENALTY = 0.7
+local RED_FLAG_WORDS = {
+    "permanently", "fridge", "blob", "sticker", "fake", "doesn't work",
+    "broken", "stopped working", "melted", "cracked", "stain", "smell",
+    "gave up", "fell apart", "scam",
+}
+
+local ROTATE_SCORE_RATIO = 0.6
+local ROTATE_MIN_AGE_SEC = 180
+local listingStartedAt = {}
+
+-- ===== HustleGPT AI pitch (fitur baru) =====
+-- Data mentah dari ai.ideas (conf, claimDemand, hype) itu KLAIM AI, bisa dilebih-lebihkan
+-- (UI game sendiri bilang "HustleGPT exaggerates"). Makanya WAJIB AiAnalyze dulu tiap pitch
+-- baru sebelum diputusin adopt atau nggak -- jangan pernah adopt cuma dari klaim conf/claimDemand.
+-- DEMAND_RANK: urutan kategori demand asli (ai.analysis[pid].demand), dipisah jadi variabel
+-- biar gampang diganti kalau mau dijadiin dropdown di GUI nanti.
+local DEMAND_RANK = { low = 1, medium = 2, high = 3, ["very high"] = 4 }
+local MIN_AI_DEMAND = "medium" -- << GANTI INI (atau sambungin ke dropdown GUI) buat ubah threshold
+local AI_REROLL_BUDGET_PCT = 0.5 -- max persentase availableBudget() yang boleh dipake buat reroll+analyze per cycle
+local aiAnalyzedThisSession = {}
+
+local function log(s)
+    warn("[ShipifyBot] " .. s)
+end
+
+local function cash()
+    return (Net.state.core or {}).cash or 0
+end
+
+local function shipState()
+    return Net.state.ship or {}
+end
+
+local function availableBudget()
+    local c = cash()
+    local usable = c * (1 - CASH_BUFFER_PCT)
+    return math.max(0, usable)
+end
+
+local function skillLevel(id)
+    local skills = (Net.state.core or {}).skills or {}
+    return Progression.levelFromXp(skills[id] or 0)
+end
+
+local function audienceFit(aud, cat)
+    local a = Products.audienceById[aud]
+    if not a or not a.fit then return 1 end
+    return a.fit[cat] or 1
+end
+
+local function bestPrice(prod)
+    local bestP, bestScore = prod.msrp, -math.huge
+    local lo = prod.cost * 1.3
+    local hi = prod.msrp * 1.15
+    local steps = 12
+    for i = 0, steps do
+        local price = lo + (hi - lo) * (i / steps)
+        local fairValue = prod.msrp * (0.5 + 0.5 * prod.quality)
+        local priceRatio = price / fairValue
+        local demandMult = math.clamp(1.6 - priceRatio, 0.05, 1.6)
+        local demandScore = prod.demand * demandMult * (1 - prod.comp * 0.5)
+        local margin = price - prod.cost
+        local score = margin * demandScore
+        if score > bestScore then
+            bestScore = score
+            bestP = price
+        end
+    end
+    return math.floor(bestP), bestScore
+end
+
+local function bestAudience(cat)
+    local best, bestMult = "everyone", 1
+    for _, a in ipairs(Products.audiences) do
+        local mult = audienceFit(a.id, cat)
+        if mult > bestMult then
+            bestMult = mult
+            best = a.id
+        end
+    end
+    return best, bestMult
+end
+
+local function bestHeadline(aud)
+    local best, bestScore = "honest", -math.huge
+    for _, h in ipairs(Products.headlines) do
+        local fit = (h.fit and h.fit[aud]) or 1
+        local score = fit - (h.refund or 0) * 2
+        if score > bestScore then
+            bestScore = score
+            best = h.id
+        end
+    end
+    return best
+end
+
+local function isPlatformUnlocked(p)
+    if p.id == "gurutube" then
+        return skillLevel("marketing") >= 3
+    end
+    return true
+end
+
+local function bestPlatform(budget)
+    local best, bestScore = nil, -math.huge
+    for _, p in ipairs(Products.platforms) do
+        if not isPlatformUnlocked(p) then continue end
+        local clicksPerBudget = (budget / p.cpm) * 1000 * p.ctr * p.reach
+        local expectedOrders = clicksPerBudget * p.conv
+        if expectedOrders > bestScore then
+            bestScore = expectedOrders
+            best = p.id
+        end
+    end
+    if not best then
+        for _, p in ipairs(Products.platforms) do
+            if isPlatformUnlocked(p) then
+                best = p.id
+                break
+            end
+        end
+    end
+    return best, bestScore
+end
+
+local function sampleNotePenalty(prod)
+    local note = prod.sampleNote
+    if not note or type(note) ~= "string" then return 1 end
+    local lower = note:lower()
+    for _, w in ipairs(RED_FLAG_WORDS) do
+        if lower:find(w, 1, true) then
+            return SAMPLE_NOTE_PENALTY
+        end
+    end
+    return 1
+end
+
+local function scoreProduct(prod, trendBoost)
+    if prod.demand < MIN_DEMAND then
+        return nil
+    end
+    local price, marginScore = bestPrice(prod)
+    local cat = prod.cat
+    local aud, audMult = bestAudience(cat)
+    local hl = bestHeadline(aud)
+    local boost = trendBoost[prod.id] or trendBoost[cat] or 1
+    local compPenalty = math.clamp(1 - (prod.comp or 0) * COMP_PENALTY_MULT, 0.05, 1)
+    local rel = prod.rel or 1
+    local relPenalty = 1
+    if rel < MIN_REL then
+        relPenalty = math.clamp(1 - (MIN_REL - rel) * REL_PENALTY_MULT, 0.3, 1)
+    end
+    local notePenalty = sampleNotePenalty(prod)
+    local totalScore = marginScore * audMult * boost * compPenalty * relPenalty * notePenalty
+    return {
+        prod = prod,
+        price = price,
+        aud = aud,
+        hl = hl,
+        score = totalScore,
+        audMult = audMult,
+    }
+end
+
+local function getTrendBoosts()
+    local boosts = {}
+    local trends = (Net.state.trends or {}).active or {}
+    for _, t in ipairs(trends) do
+        for _, eff in ipairs(t.effects or {}) do
+            local pct = eff:match("%+(%d+)%%")
+            if pct and eff:find("Shipify") then
+                for _, prod in ipairs(Products.list) do
+                    if eff:find(prod.name, 1, true) then
+                        boosts[prod.id] = 1 + tonumber(pct) / 100
+                    end
+                end
+            end
+        end
+    end
+    return boosts
+end
+
+local SORTED_BUDGETS = {}
+for _, b in ipairs(Products.budgets) do table.insert(SORTED_BUDGETS, b) end
+table.sort(SORTED_BUDGETS)
+
+local function pickBudgetPreset(targetSpend, prevBudgetCents, hadOrders, comp, audMult)
+    local maxBudget = shipState().maxBudget or math.huge
+    local cap = math.min(targetSpend, maxBudget, availableBudget())
+
+    local wantIdx
+    if not prevBudgetCents then
+        wantIdx = BASE_BUDGET_TIER_IDX
+    else
+        local prevIdx = nil
+        for i, b in ipairs(SORTED_BUDGETS) do
+            if b == prevBudgetCents then prevIdx = i break end
+        end
+        if not prevIdx then
+            wantIdx = BASE_BUDGET_TIER_IDX
+        elseif hadOrders then
+            wantIdx = prevIdx + 1
+        else
+            wantIdx = prevIdx
+        end
+    end
+
+    comp = comp or 0
+    audMult = audMult or 1
+    if comp >= COMP_TIER_PENALTY_HIGH then
+        wantIdx = wantIdx - 2
+    elseif comp >= COMP_TIER_PENALTY_MED then
+        wantIdx = wantIdx - 1
+    end
+    if audMult <= 1 then
+        wantIdx = wantIdx - BROAD_AUDIENCE_TIER_PENALTY
+    end
+
+    wantIdx = math.clamp(wantIdx, 1, #SORTED_BUDGETS)
+    local best = nil
+    for i = wantIdx, 1, -1 do
+        local b = SORTED_BUDGETS[i]
+        if b <= cap then
+            best = b
+            break
+        end
+    end
+    if not best then
+        for _, b in ipairs(SORTED_BUDGETS) do
+            if b <= cap then
+                if not best or b < best then best = b end
+            end
+        end
+    end
+    return best
+end
+
+local function pickDurationPreset()
+    local best = nil
+    for _, d in ipairs(Products.durations) do
+        if not best or d > best then
+            best = d
+        end
+    end
+    return best
+end
+
+local function fulfillAll()
+    local ok, res = pcall(function() return Net.request("Ship", "FulfillAll") end)
+    if ok and res and res.ok then
+        log("FulfillAll ok")
+    end
+end
+
+local function resolveTickets()
+    local s = shipState()
+    for _, ticket in ipairs(s.tickets or {}) do
+        -- field asli dari game adalah "options" (bukan "choices") -- lihat buildSupport di
+        -- modul Shipify: for v399, v_u_400 in ipairs(v_u_389.options) ... request("Ship","Resolve", ticket.id, option.id)
+        -- Opsi pertama = "Answer honestly" (builds trust), selalu pilih ini, bukan opsi "Absolutely. Revolutionary."
+        -- (menyesatkan, bikin disappointment) atau "Ignore it" (ke-notice customer).
+        local opt1 = ticket.options and ticket.options[1]
+        if opt1 then
+            local ok, res = pcall(function()
+                return Net.request("Ship", "Resolve", ticket.id, opt1.id)
+            end)
+            if ok and res and res.ok then
+                log("Resolve ticket ok: " .. tostring(ticket.id) .. " (opsi: " .. tostring(opt1.label) .. ")")
+            else
+                log("Resolve ticket failed: " .. tostring(ticket.id) .. " -> " .. tostring(ok and res and res.err or res))
+            end
+        else
+            log("Skip resolve ticket " .. tostring(ticket.id) .. ": ticket.options kosong/nil")
+        end
+    end
+end
+
+local function ensureListing(pid, price)
+    local s = shipState()
+    local existing = s.listings and s.listings[pid]
+    if existing and existing.active then
+        return true
+    end
+    local prod = Products.byId[pid]
+
+    local samples = s.samples or {}
+    if not samples[pid] then
+        log("Skip list " .. prod.name .. ": belum ada sample (nunggu sample arrive / belum dipesan)")
+        return false
+    end
+
+    local ok, res = pcall(function()
+        return Net.request("Ship", "List", pid, price, "honest")
+    end)
+    if ok and res and res.ok then
+        log("Listed " .. prod.name .. " @ $" .. string.format("%.2f", price/100))
+        listingStartedAt[pid] = os.clock()
+        return true
+    else
+        log("Failed to list " .. tostring(pid) .. ": " .. tostring(ok and res and res.err or res))
+        return false
+    end
+end
+
+local function unlistProduct(pid)
+    local prod = Products.byId[pid]
+    local ok, res = pcall(function()
+        return Net.request("Ship", "Unlist", pid)
+    end)
+    if ok and res and res.ok then
+        log("Unlisted " .. (prod and prod.name or pid) .. " (digantiin kandidat lebih bagus)")
+        listingStartedAt[pid] = nil
+        return true
+    else
+        log("Failed to unlist " .. tostring(pid) .. ": " .. tostring(ok and res and res.err or res))
+        return false
+    end
+end
+
+local function hasActiveCampaignFor(pid)
+    local s = shipState()
+    for _, c in ipairs(s.campaigns or {}) do
+        if c.pid == pid then return true end
+    end
+    return false
+end
+
+local function computeHadOrders(last)
+    local clicks = last.clicks or 0
+    local orders = last.orders or 0
+    if clicks < MIN_CONV_SAMPLE_CLICKS then
+        return nil
+    end
+    local conv = orders / clicks
+    local storeConv = (shipState().storeConv) or ((Net.state.core or {}).conv) or 0.0832
+    return conv >= storeConv * LOW_CONV_RATIO
+end
+
+local function lastCampaignResultFor(pid)
+    local s = shipState()
+    local history = s.finishedCampaigns or s.history or s.pastCampaigns or {}
+    local last = nil
+    for _, c in ipairs(history) do
+        if c.pid == pid then
+            if not last or (c.endedAt or 0) >= (last.endedAt or 0) then
+                last = c
+            end
+        end
+    end
+    if not last then return nil, nil end
+    local budgetCents = last.budget or last.budgetCents
+    local hadOrders = computeHadOrders(last)
+    return budgetCents, hadOrders
+end
+
+local function launchAdFor(choice, budgetCents, hours)
+    local ok, res = pcall(function()
+        return Net.request("Ship", "Launch", choice.prod.id, choice.platform, choice.aud, choice.hl, budgetCents, hours)
+    end)
+    if ok and res and res.ok then
+        log(string.format("Launched ad: %s | %s/%s/%s | budget $%.2f | %dh",
+            choice.prod.name, choice.platform, choice.aud, choice.hl, budgetCents/100, hours))
+    else
+        log("Launch failed: " .. tostring(ok and res and res.err or res))
+    end
+end
+
+local function tryUpgrade()
+    local s = shipState()
+    local level = s.level or 1
+    local nextUp = Products.UPGRADES[level + 1]
+    if not nextUp then return end
+    local c = cash()
+    if nextUp.cost > 0 and nextUp.cost <= c * 0.5 then
+        local ok, res = pcall(function() return Net.request("Ship", "Upgrade") end)
+        if ok and res and res.ok then
+            log("Upgraded store to level " .. (level + 1) .. " (" .. nextUp.name .. ")")
+        end
+    end
+end
+
+local function aiState()
+    return (Net.state.ship or {}).ai or {}
+end
+
+local function aiRequest(action, ...)
+    local args = { ... }
+    return pcall(function()
+        return Net.request("Ship", action, table.unpack(args))
+    end)
+end
+
+local function demandRankOf(demandStr)
+    if not demandStr then return 0 end
+    return DEMAND_RANK[tostring(demandStr):lower()] or 0
+end
+
+-- Flow: AiReroll (kalau ideas kosong & masih ada rerollsLeft) -> AiAnalyze tiap idea
+-- yang belum dianalisa -> baru putusin AiAdopt berdasar data analysis ASLI (bukan klaim AI).
+local function decideAiPitches()
+    local ai = aiState()
+    if not ai.unlocked then return end
+
+    local ideas = ai.ideas or {}
+    local analysis = ai.analysis or {}
+    local adopted = ai.adopted or {}
+    local costs = ai.costs or {}
+    local budget = availableBudget() * AI_REROLL_BUDGET_PCT
+
+    -- 1) kalau gak ada idea yang MASIH BERPOTENSI diadopt (semua udah di-adopt,
+    --    atau sisanya udah ketauan demand-nya kurang dari MIN_AI_DEMAND, atau emang kosong),
+    --    dan masih ada reroll jatah + cash cukup, reroll biar dapet pitch baru.
+    --    Idea yang belum dianalisis dianggap masih "pending" (belum tau demand aslinya),
+    --    idea yang udah dianalisis tapi demand-nya kurang TIDAK dihitung pending lagi,
+    --    supaya reroll tetap kejadian walau ada idea jelek yang nyangkut di list.
+    local minRankCheck = demandRankOf(MIN_AI_DEMAND)
+    local hasPending = false
+    for _, idea in ipairs(ideas) do
+        local pid = idea.pid
+        if not adopted[pid] then
+            local a = analysis[pid]
+            if not a then
+                hasPending = true break -- belum dianalisis, masih mungkin lolos
+            elseif demandRankOf(a.demand) >= minRankCheck then
+                hasPending = true break -- udah dianalisis dan demand-nya cukup, tinggal nunggu adopt
+            end
+            -- kalau udah dianalisis dan demand-nya kurang, idea ini dianggap "mati", gak dihitung pending
+        end
+    end
+    if not hasPending then
+        local rerollCost = costs.reroll or 0
+        if (ai.rerollsLeft or 0) > 0 and rerollCost <= budget then
+            local ok, res = aiRequest("AiReroll")
+            if ok and res and res.ok then
+                log("AiReroll ok (rerollsLeft sisa " .. ((ai.rerollsLeft or 1) - 1) .. ")")
+            end
+        end
+        return -- tunggu cycle berikutnya buat proses idea yang baru masuk
+    end
+
+    -- 2) tiap idea yang belum dianalisa DAN belum di-adopt, wajib di-AiAnalyze dulu.
+    --    Jangan pernah mutusin adopt dari ideas[i].conf/claimDemand -- itu klaim AI doang.
+    for _, idea in ipairs(ideas) do
+        local pid = idea.pid
+        if not adopted[pid] and not analysis[pid] and not aiAnalyzedThisSession[pid] then
+            local analyzeCost = costs.analyze or 0
+            if analyzeCost <= budget then
+                local ok, res = aiRequest("AiAnalyze", pid)
+                if ok and res and res.ok then
+                    aiAnalyzedThisSession[pid] = true
+                    log("AiAnalyze ok: " .. tostring(pid))
+                else
+                    log("AiAnalyze failed: " .. tostring(pid) .. " -> " .. tostring(ok and res and res.err or res))
+                end
+            else
+                log("Skip AiAnalyze " .. tostring(pid) .. ": budget available gak cukup")
+            end
+            return -- satu analyze per cycle, biar gak boros & state sempat ke-refresh
+        end
+    end
+
+    -- 3) idea yang udah ada hasil analysis real -> putusin adopt by DATA, bukan ikut AI.
+    --    Syarat: demand asli >= MIN_AI_DEMAND. (comp/margin/rel cuma informasi tambahan
+    --    di sini karena sample-nya nanti tetap lewat alur ensureListing yang udah ada)
+    local minRank = demandRankOf(MIN_AI_DEMAND)
+    for _, idea in ipairs(ideas) do
+        local pid = idea.pid
+        local a = analysis[pid]
+        if not adopted[pid] and a then
+            if demandRankOf(a.demand) >= minRank then
+                local ok, res = aiRequest("AiAdopt", pid)
+                if ok and res and res.ok then
+                    log("AiAdopt ok: " .. tostring(pid) .. " (real demand=" .. tostring(a.demand) .. ", comp=" .. tostring(a.comp) .. ", margin=" .. tostring(a.margin) .. ")")
+                else
+                    log("AiAdopt failed: " .. tostring(pid) .. " -> " .. tostring(ok and res and res.err or res))
+                end
+            else
+                log("Skip adopt " .. tostring(pid) .. ": real demand cuma '" .. tostring(a.demand) .. "' (minimal '" .. MIN_AI_DEMAND .. "')")
+            end
+        end
+    end
+end
+
+local MAX_SAMPLED_PRODUCTS = 3
+
+local function countSamples()
+    local s = shipState()
+    local n = 0
+    for _ in pairs(s.samples or {}) do n = n + 1 end
+    return n
+end
+
+local function decideSample()
+    if countSamples() >= MAX_SAMPLED_PRODUCTS then
+        return
+    end
+    local s = shipState()
+    local samples = s.samples or {}
+    local trendBoost = getTrendBoosts()
+    local candidates = {}
+    for _, prod in ipairs(Products.list) do
+        if prod.ai then continue end
+        if not samples[prod.id] then
+            local scored = scoreProduct(prod, trendBoost)
+            if scored then
+                table.insert(candidates, scored)
+            end
+        end
+    end
+    table.sort(candidates, function(a, b) return a.score > b.score end)
+
+    local budget = availableBudget()
+    for _, c in ipairs(candidates) do
+        local sampleCost = c.prod.sample
+        if sampleCost <= budget * MAX_SAMPLE_SPEND then
+            local ok, res = pcall(function()
+                return Net.request("Ship", "Sample", c.prod.id)
+            end)
+            if ok and res and res.ok then
+                log("Ordered sample: " .. c.prod.name .. " ($" .. string.format("%.2f", sampleCost/100) .. ")")
+            end
+            return
+        end
+    end
+end
+
+local function profitOf(pid)
+    local s = shipState()
+    local pp = s.perProduct and s.perProduct[pid]
+    return (pp and pp.profit) or 0
+end
+
+local function decideListingAndAds()
+    local s = shipState()
+    local trendBoost = getTrendBoosts()
+    local candidates = {}
+    for _, prod in ipairs(Products.list) do
+        if prod.ai then continue end
+        local scored = scoreProduct(prod, trendBoost)
+        if scored then
+            table.insert(candidates, scored)
+        end
+    end
+    -- scoreProduct tetap dipake buat nentuin harga/audience/headline pas produk itu di-list/iklan,
+    -- tapi urutan listing/unlist di bawah ini pake profit asli (s.perProduct[pid].profit), bukan score ini.
+    table.sort(candidates, function(a, b) return a.score > b.score end)
+
+    -- FIX v9.2: pake field asli dari state (udah dihitung sama game sesuai level toko),
+    -- bukan hitung manual dari Products.UPGRADES[level].listings (ternyata gak sinkron).
+    -- Ini otomatis ngikutin slot yang kebuka di level berapapun / akun manapun.
+    local maxListings = s.maxListings or 1
+
+    -- FIX v9.3: ranking listing/unlist sekarang murni by PROFIT asli (s.perProduct[pid].profit).
+    -- Produk yang belum pernah ke-list = belum ada entry di s.perProduct, dianggap profit 0.
+    -- Hanya kandidat yang udah ada sample-nya yang ikut dirangking (sample tetap wajib dulu).
+    --
+    -- ATURAN (sesuai arahan user): ISI SLOT KOSONG DULU sampai maxListings penuh —
+    -- jangan unlist apapun selama masih ada slot kosong. Unlist CUMA kalau slot udah
+    -- penuh semua DAN ada kandidat (sample ready) dengan profit lebih tinggi dari
+    -- listing yang profitnya paling kecil saat ini.
+    -- FIX v9.5: s.listings nyimpen SEMUA produk yang pernah di-list (termasuk yang udah
+    -- di-unlist, active=false) — bukan cuma yang lagi aktif. activeCount versi lama
+    -- ngitung semua key tanpa cek .active, jadi dikira "penuh" padahal UI nunjukin masih
+    -- banyak slot kosong. Sekarang cuma itung yang listing.active == true.
+    local activeCount = 0
+    for _, listing in pairs(s.listings or {}) do
+        if listing.active then
+            activeCount = activeCount + 1
+        end
+    end
+
+    do
+        local samples = s.samples or {}
+        local rankable = {}
+        for _, c in ipairs(candidates) do
+            if samples[c.prod.id] then
+                table.insert(rankable, { pid = c.prod.id, profit = profitOf(c.prod.id) })
+            end
+        end
+        table.sort(rankable, function(a, b) return a.profit > b.profit end)
+
+        -- urutin ulang candidates: produk profit tertinggi duluan (buat prioritas isi slot kosong),
+        -- baru sisanya pake urutan score lama (produk yang belum ada data profit/belum sample).
+        local candByPid = {}
+        for _, c in ipairs(candidates) do candByPid[c.prod.id] = c end
+        local reordered = {}
+        local used = {}
+        for _, r in ipairs(rankable) do
+            if candByPid[r.pid] and not used[r.pid] then
+                table.insert(reordered, candByPid[r.pid])
+                used[r.pid] = true
+            end
+        end
+        for _, c in ipairs(candidates) do
+            if not used[c.prod.id] then
+                table.insert(reordered, c)
+                used[c.prod.id] = true
+            end
+        end
+        candidates = reordered
+
+        -- Cuma kalau slot UDAH PENUH, baru cek rotate: kandidat terbaik yang belum
+        -- listing dibanding listing aktif dengan profit paling kecil.
+        if activeCount >= maxListings and #rankable > 0 then
+            local bestCandidate = nil
+            for _, r in ipairs(rankable) do
+                local isListed = s.listings and s.listings[r.pid] and s.listings[r.pid].active
+                if not isListed then
+                    bestCandidate = r
+                    break
+                end
+            end
+
+            if bestCandidate then
+                -- cari listing aktif dengan profit paling kecil buat di-unlist
+                local worstPid, worstProfit = nil, math.huge
+                for pid, listing in pairs(s.listings or {}) do
+                    if listing.active then
+                        local age = listingStartedAt[pid] and (os.clock() - listingStartedAt[pid]) or math.huge
+                        if age >= ROTATE_MIN_AGE_SEC and not hasActiveCampaignFor(pid) then
+                            local p = profitOf(pid)
+                            if p < worstProfit then
+                                worstProfit = p
+                                worstPid = pid
+                            end
+                        end
+                    end
+                end
+
+                if worstPid and bestCandidate.profit > worstProfit then
+                    if unlistProduct(worstPid) then
+                        activeCount = activeCount - 1
+                    end
+                end
+            end
+        end
+    end
+
+    -- FIX v9.2: sama kayak maxListings, pake field asli s.maxCampaigns dari state.
+    local maxCampaigns = s.maxCampaigns or maxListings
+    local activeCampaignCount = #(s.campaigns or {})
+
+    local hours = pickDurationPreset()
+    if not hours then
+        log("Skip ads: Products.durations kosong/nil")
+        return
+    end
+
+    for _, c in ipairs(candidates) do
+        local already = s.listings and s.listings[c.prod.id] and s.listings[c.prod.id].active
+        if not already and activeCount < maxListings then
+            if ensureListing(c.prod.id, c.price) then
+                activeCount = activeCount + 1
+                already = true
+            end
+        end
+
+        if already then
+            if not hasActiveCampaignFor(c.prod.id) then
+                if activeCampaignCount >= maxCampaigns then
+                    log("Skip launch ads " .. c.prod.name .. ": slot campaign penuh (" .. activeCampaignCount .. "/" .. maxCampaigns .. ")")
+                else
+                    local remainingSlots = math.max(1, maxCampaigns - activeCampaignCount)
+                    local curBudget = availableBudget()
+                    local targetSpend = (curBudget * AD_BUDGET_SPEND_PCT) / remainingSlots
+                    local plat = bestPlatform(targetSpend)
+                    if not plat then
+                        log("Skip launch ads " .. c.prod.name .. ": ga ada platform yang unlocked")
+                    else
+                        local prevBudget, hadOrders = lastCampaignResultFor(c.prod.id)
+                        local budgetPreset = pickBudgetPreset(targetSpend, prevBudget, hadOrders, c.prod.comp, c.audMult)
+                        if budgetPreset then
+                            launchAdFor({ prod = c.prod, platform = plat, aud = c.aud, hl = c.hl }, budgetPreset, hours)
+                            activeCampaignCount = activeCampaignCount + 1
+                        else
+                            log("Skip launch ads " .. c.prod.name .. ": budget available ga cukup buat preset terkecil")
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function cycle()
+    log("--- cycle | cash=" .. cash() .. " ---")
+    fulfillAll()
+    resolveTickets()
+    decideListingAndAds()
+    decideSample()
+    decideAiPitches()
+    tryUpgrade()
+end
+
+log("started. loop every " .. LOOP_INTERVAL .. "s, cash buffer " .. (CASH_BUFFER_PCT*100) .. "%")
+
+task.spawn(function()
+    while true do
+        local ok, err = pcall(cycle)
+        if not ok then
+            log("cycle error: " .. tostring(err))
+        end
+        task.wait(LOOP_INTERVAL)
+    end
+end)
