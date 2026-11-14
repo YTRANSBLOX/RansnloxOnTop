@@ -1,0 +1,301 @@
+------------------------------------------------------------
+-- tradex_autobot_v5.lua
+-- CHANGES from v4 (recon-confirmed via decompile of
+-- ETM.Client.Apps.TradeX + live state check):
+--   1. Cost basis CONFIRMED correct in v4: pos.cost is avg cost
+--      basis (cents, accumulated), P/L % = pnl / pos.cost. No
+--      change needed to avgCostOf().
+--   2. NEW: analyst outlook (mkt.px[sym].out = {label, conf}) is
+--      LIVE for this account (tools.analyst = true, level 4).
+--      This is PREDICTIVE (pre-event) vs news (REACTIVE, post-event).
+--      Priority order is now: outlook-bullish > news-momentum > dip.
+--   3. NEW: outlook-bearish on a HELD position triggers preventive
+--      exit, ahead of waiting for SL to hit.
+--   4. NEW: position sizing scales down for "low" confidence
+--      outlooks (CONF_SIZE_MULT), since all observed outlooks so
+--      far are low-confidence.
+------------------------------------------------------------
+local RS = game:GetService("ReplicatedStorage")
+local Net = require(RS:WaitForChild("ETM"):WaitForChild("Client"):WaitForChild("Net"))
+local MarketData = require(RS:WaitForChild("ETM"):WaitForChild("Shared"):WaitForChild("MarketData"))
+
+local LOOP_INTERVAL   = 15
+local CASH_BUFFER_PCT = 0.25
+local MAX_SPEND_PCT   = 0.25
+local MAX_IMPACT      = 0.03
+local MAX_HOLDINGS    = 5
+
+local TAKE_PROFIT_PCT = 0.08
+local STOP_LOSS_PCT   = -0.06
+
+local DIP_THRESHOLD   = -0.03
+local NEWS_FRESH_SEC  = 120
+
+local ALLOWED_CATS = { stock = true, tech = true }
+
+-- confidence -> size multiplier (applied to spendCap for outlook-driven buys)
+local CONF_SIZE_MULT = {
+    low = 0.5,
+    medium = 0.8,
+    high = 1.0,
+}
+
+local function log(s)
+    warn("[TradeXBot v5] " .. s)
+end
+
+local function cash()
+    return (Net.state.core or {}).cash or 0
+end
+
+local function mkt()
+    return Net.state.mkt or { px = {}, news = {} }
+end
+
+local function acct()
+    return Net.state.trade or { pos = {} }
+end
+
+local function availableBudget()
+    local c = cash() / 100
+    return math.max(0, c * (1 - CASH_BUFFER_PCT))
+end
+
+local function countHoldings()
+    local n = 0
+    for _, p in pairs(acct().pos or {}) do
+        if (p.q or 0) > 0 then n = n + 1 end
+    end
+    return n
+end
+
+local function avgCostOf(sym)
+    -- CONFIRMED via decompile: pos.cost is total cost basis (cents),
+    -- avg cost per unit = cost / 100 / q. Matches game's own P/L
+    -- calc exactly (v282 = value - cost; pct = v282 / cost).
+    local pos = (acct().pos or {})[sym]
+    if not pos or not pos.q or pos.q <= 0 or not pos.cost then
+        return nil
+    end
+    return (pos.cost / 100) / pos.q
+end
+
+local function sizedBuyQty(sym, price, fee, budgetDollar)
+    local qty = math.floor(budgetDollar / (price * (1 + fee) * 1.01))
+    if qty < 1 then return 0 end
+    local budgetCents = budgetDollar * 100
+    for _ = 1, 8 do
+        local ok, q = pcall(function()
+            return Net.request("TxQuote", sym, "buy", qty)
+        end)
+        if ok and q and q.ok then
+            if q.total <= budgetCents and q.impact <= MAX_IMPACT then
+                return qty, q
+            end
+            local shrink = (q.impact and q.impact > MAX_IMPACT) and 0.6 or 0.85
+            qty = math.floor(qty * shrink)
+            if qty < 1 then return 0 end
+        else
+            return 0
+        end
+    end
+    return 0
+end
+
+local function freshBullishSymbols()
+    local nowT = os.time()
+    local result = {}
+    for _, n in ipairs(mkt().news or {}) do
+        if n.x and n.x > 0 and n.s then
+            local assetDef = MarketData.bySym and MarketData.bySym[n.s]
+            local cat = assetDef and assetDef.cat
+            if cat and ALLOWED_CATS[cat] then
+                local age = nowT - (n.m or 0)
+                if age >= 0 and age <= NEWS_FRESH_SEC then
+                    result[n.s] = true
+                end
+            end
+        end
+    end
+    return result
+end
+
+-- NEW: scan mkt.px for symbols with a live analyst outlook
+-- Returns separate lists for bullish and bearish, stock/tech only.
+local function outlookSymbols()
+    local bullish, bearish = {}, {}
+    for sym, data in pairs(mkt().px or {}) do
+        local assetDef = MarketData.bySym and MarketData.bySym[sym]
+        local cat = assetDef and assetDef.cat
+        if cat and ALLOWED_CATS[cat] and data.out and data.out.label then
+            local label = data.out.label
+            local conf = data.out.conf or "low"
+            if label == "Bullish" then
+                table.insert(bullish, { sym = sym, data = data, cat = cat, conf = conf })
+            elseif label == "Bearish" then
+                table.insert(bearish, { sym = sym, data = data, cat = cat, conf = conf })
+            end
+        end
+    end
+    return bullish, bearish
+end
+
+local function decideBuy()
+    if countHoldings() >= MAX_HOLDINGS then
+        log("skip buy: max holdings reached")
+        return
+    end
+    local budget = availableBudget()
+    if budget <= 0 then return end
+
+    local positions = acct().pos or {}
+    local bullishOutlook = select(1, outlookSymbols())
+    local bullishNews = freshBullishSymbols()
+
+    local outlookCandidates = {}
+    local momentumCandidates = {}
+    local dipCandidates = {}
+
+    -- priority 1: analyst outlook bullish (predictive, pre-event)
+    for _, c in ipairs(bullishOutlook) do
+        local already = positions[c.sym] and (positions[c.sym].q or 0) > 0
+        if not already then
+            table.insert(outlookCandidates, c)
+        end
+    end
+
+    for sym, data in pairs(mkt().px or {}) do
+        local assetDef = MarketData.bySym and MarketData.bySym[sym]
+        local cat = assetDef and assetDef.cat
+        if cat and ALLOWED_CATS[cat] then
+            local already = positions[sym] and (positions[sym].q or 0) > 0
+            if not already then
+                -- priority 2: fresh bullish news (reactive, post-event)
+                if bullishNews[sym] then
+                    table.insert(momentumCandidates, { sym = sym, data = data, cat = cat })
+                end
+                -- priority 3: dip buy
+                local chg = data.chg or 0
+                if chg <= DIP_THRESHOLD then
+                    table.insert(dipCandidates, { sym = sym, data = data, chg = chg, cat = cat })
+                end
+            end
+        end
+    end
+
+    local pick, mode, confMult
+    if #outlookCandidates > 0 then
+        pick = outlookCandidates[1]
+        mode = "outlook"
+        confMult = CONF_SIZE_MULT[pick.conf] or CONF_SIZE_MULT.low
+    elseif #momentumCandidates > 0 then
+        pick = momentumCandidates[1]
+        mode = "momentum"
+        confMult = 1.0
+    elseif #dipCandidates > 0 then
+        table.sort(dipCandidates, function(a, b) return a.chg < b.chg end)
+        pick = dipCandidates[1]
+        mode = "dip"
+        confMult = 1.0
+    else
+        log("no candidates (outlook/momentum/dip, stock/tech only) this cycle")
+        return
+    end
+
+    local sym, data = pick.sym, pick.data
+    local catParams = MarketData.catById[data.cat] or MarketData.catById.stock
+    local fee = catParams.fee or 0.01
+    local spendCap = budget * MAX_SPEND_PCT * confMult
+
+    local qty = sizedBuyQty(sym, data.p, fee, spendCap)
+    if qty < 1 then
+        log(string.format("skip %s [%s]: qty too small (price $%.2f, spendCap $%.2f)", sym, mode, data.p, spendCap))
+        return
+    end
+
+    local ok, res = pcall(function()
+        return Net.request("TxBuy", sym, qty)
+    end)
+    if ok and res and res.ok then
+        local confNote = pick.conf and (" conf=" .. pick.conf) or ""
+        log(string.format("BUY %s [%s/%s%s] x%d (chg %.1f%%, total $%.2f)",
+            sym, pick.cat, mode, confNote, qty, (data.chg or 0) * 100, (res.total or 0) / 100))
+    else
+        log("buy failed for " .. sym .. ": " .. tostring(res and res.err or "unknown"))
+    end
+end
+
+local function decideSell()
+    local positions = acct().pos or {}
+    local prices = mkt().px or {}
+    local _, bearishOutlook = outlookSymbols()
+    local bearishSet = {}
+    for _, c in ipairs(bearishOutlook) do
+        bearishSet[c.sym] = c.conf
+    end
+
+    for sym, pos in pairs(positions) do
+        local qty = pos.q or 0
+        if qty > 0 then
+            local avg = avgCostOf(sym)
+            if not avg then
+                log("skip sell-check " .. sym .. ": cost basis unavailable")
+            else
+                local data = prices[sym]
+                if data then
+                    local pnlPct = (data.p - avg) / avg
+
+                    -- NEW: preventive exit on bearish outlook, but only if
+                    -- we're not already comfortably in profit past TP, and
+                    -- only if we're not deep enough in loss that normal SL
+                    -- will fire anyway. This avoids selling at a worse price
+                    -- than a clean TP/SL would have given.
+                    local bearishConf = bearishSet[sym]
+                    local shouldExit = false
+                    local exitReason = nil
+
+                    if pnlPct >= TAKE_PROFIT_PCT then
+                        shouldExit = true
+                        exitReason = "TP"
+                    elseif pnlPct <= STOP_LOSS_PCT then
+                        shouldExit = true
+                        exitReason = "SL"
+                    elseif bearishConf then
+                        shouldExit = true
+                        exitReason = "outlook-bearish(" .. bearishConf .. ")"
+                    end
+
+                    if shouldExit then
+                        local ok, res = pcall(function()
+                            return Net.request("TxSell", sym, qty)
+                        end)
+                        if ok and res and res.ok then
+                            log(string.format("SELL %s x%d [%s] (pnl %.1f%%, got $%.2f)", sym, qty, exitReason, pnlPct * 100, (res.total or 0) / 100))
+                        else
+                            log("sell failed for " .. sym .. ": " .. tostring(res and res.err or "unknown"))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function cycle()
+    log(string.format("--- cycle | cash=%d | holdings=%d ---", cash(), countHoldings()))
+    decideSell()
+    decideBuy()
+end
+
+log("started v5 (real cost basis + analyst outlook priority + news momentum fallback, stock/tech only). loop "
+    .. LOOP_INTERVAL .. "s | TP " .. (TAKE_PROFIT_PCT*100) .. "% | SL " .. (STOP_LOSS_PCT*100) .. "%")
+
+task.spawn(function()
+    while true do
+        local ok, err = pcall(cycle)
+        if not ok then
+            log("cycle error: " .. tostring(err))
+        end
+        task.wait(LOOP_INTERVAL)
+    end
+end)
