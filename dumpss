@@ -1,0 +1,1748 @@
+keys: Mayor, Warden, HangUp, Offer
+scripts scanned: 239
+
+===== Players.Ranscriptsss.PlayerScripts.Client.VFX.Late =====
+   ...
+845: 			v270.life = v244.MarkLife
+846: 			v270.delay = v266 * v244.MarkGap
+847: 			v268(v269, v270)
+848: 			if not v267.bad then
+849: 				continue
+850: 			end
+851: 			task.delay(v266 * v244.MarkGap, v_u_11.emit, "fizz", CFrame.new(v267.head.Position + Vector3.new(0, 1, 0)), v_u_11.n(3))
+852: 		end
+853: 	end
+854: end
+855: local function v_u_277(p_u_274) -- name: hop
+856: 	-- upvalues: (copy) v_u_14, (copy) v_u_16
+857: 	local v275 = v_u_14.Mayor
+858: 	local v_u_276 = p_u_274.CFrame
+859: 	p_u_274.CFrame = v_u_276 * CFrame.new(0, v275.Hop, 0) * CFrame.Angles(0, 0, v_u_16:NextNumber(-0.14, 0.14))
+860: 	task.delay(0.09, function()
+861: 		-- upvalues: (copy) p_u_274, (copy) v_u_276
+862: 		if p_u_274.Parent then
+863: 			p_u_274.CFrame = v_u_276
+864: 		end
+865: 	end)
+866: end
+867: local function v_u_293(p_u_278) -- name: ringOn
+868: 	-- upvalues: (copy) v_u_27, (copy) v_u_14, (copy) v_u_11, (copy) v_u_15, (copy) v_u_277
+869: 	if not v_u_27[p_u_278] then
+870: 		v_u_27[p_u_278] = true
+871: 		local v_u_279 = v_u_14.Mayor
+872: 		local v280 = p_u_278.Size.X
+873: 		local v281 = p_u_278.Size.Y
+874: 		local v282 = p_u_278.Size.Z
+875: 		local v_u_283 = math.max(v280, v281, v282) <= v_u_279.HopMaxSize
+876: 		task.spawn(function()
+877: 			-- upvalues: (copy) p_u_278, (ref) v_u_11, (copy) v_u_279, (ref) v_u_15, (copy) v_u_283, (ref) v_u_277, (ref) v_u_27
+878: 			local v284 = 0
+879: 			while p_u_278.Parent and p_u_278:GetAttribute("Ringing") == true do
+880: 				v284 = v284 + 1
+881: 				if not v_u_11.far(p_u_278.Position) then
+882: 					local v285 = v284 % 2 == 0 and 1 or -1
+883: 					local v286 = p_u_278.Size.X
+   ...
+918: 	if v303 then
+919: 		v304 = v303.Position
+920: 	else
+921: 		v304 = v301 - Vector3.new(0, 1, 0) * (3 + p294.Size.Y / 2)
+922: 	end
+923: 	local v305 = workspace.CurrentCamera
+924: 	local v306 = not v305 and Vector3.new(0, 0, 1) or (v305.CFrame.Position - v304) * Vector3.new(1, 0, 1)
+925: 	return CFrame.lookAt(v304, v304 + (v306.Magnitude <= 0.01 and Vector3.new(0, 0, 1) or v306.Unit))
+926: end
+927: local function v_u_316(p308) -- name: addBrick
+928: 	-- upvalues: (ref) v_u_29, (copy) v_u_14, (copy) v_u_15, (copy) v_u_12, (copy) v_u_16, (copy) v_u_11, (copy) v_u_6
+929: 	if v_u_29 == p308 and #p308.bricks < p308.target then
+930: 		local v309 = v_u_14.Mayor
+931: 		local v310 = #p308.bricks
+932: 		local v311 = Instance.new("Part")
+933: 		v311.Name = "VFXCash"
+934: 		v311.Size = v309.Brick
+935: 		local v312
+936: 		if v310 % 2 == 0 then
+937: 			v312 = v_u_15.green
+938: 		else
+939: 			v312 = v_u_15.greenHi
+940: 		end
+941: 		v311.Color = v312
+942: 		v311.Material = Enum.Material.SmoothPlastic
+   ...
+956: 			["CFrame"] = v314
+957: 		}):Play()
+958: 		local v315 = p308.bricks
+959: 		table.insert(v315, v311)
+960: 		v_u_11.emit("star", CFrame.new(v314.Position + Vector3.new(0, 0.5, 0)), 1, {
+961: 			["size"] = 0.9,
+962: 			["speed"] = 2
+963: 		})
+964: 	end
+965: end
+966: local function v_u_329(p317, p318) -- name: stackTo
+967: 	-- upvalues: (copy) v_u_14, (ref) v_u_29, (copy) v_u_307, (copy) v_u_316, (copy) v_u_11
+968: 	local v319 = v_u_14.Mayor
+969: 	if not v_u_29 or v_u_29.phone ~= p317 then
+970: 		if v_u_29 then
+971: 			for _, v320 in v_u_29.bricks do
+972: 				v320:Destroy()
+973: 			end
+974: 		end
+975: 		v_u_29 = {
+976: 			["phone"] = nil,
+977: 			["base"] = nil,
+978: 			["bricks"] = nil,
+979: 			["target"] = 0,
+980: 			["phone"] = p317,
+   ...
+1012: 			["word"] = v331.Word,
+1013: 			["burst"] = v_u_15.orange,
+1014: 			["text"] = v_u_15.white,
+1015: 			["width"] = v331.Width,
+1016: 			["life"] = v331.Life,
+1017: 			["rise"] = v331.Rise
+1018: 		})
+1019: 	end
+1020: end
+1021: function v18.Deal(p333, _)
+1022: 	-- upvalues: (copy) v_u_11, (copy) v_u_14, (copy) v_u_15, (copy) v_u_77, (copy) v_u_53, (copy) v_u_13
+1023: 	v_u_11.claim(1.6, true)
+1024: 	local v334 = v_u_14.Mayor
+1025: 	local v335 = p333.Position
+1026: 	v_u_11.emit("flash", CFrame.new(v335), 1, {
+1027: 		["size"] = 4.5,
+1028: 		["color"] = nil,
+1029: 		["color"] = v_u_15.glint
+103
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Audio.Library =====
+   ...
+1598: 		["group"] = "Music",
+1599: 		["variants"] = nil,
+1600: 		["fade"] = 1,
+1601: 		["minGap"] = 2,
+1602: 		["variants"] = {
+1603: 			{
+1604: 				["id"] = 1845164285,
+1605: 				["from"] = 0,
+1606: 				["to"] = 5
+1607: 			}
+1608: 		}
+1609: 	},
+1610: 	["MayorSteps"] = {
+1611: 		["group"] = "SFX",
+1612: 		["variants"] = nil,
+1613: 		["looped"] = true,
+1614: 		["roll"] = nil,
+1615: 		["variants"] = {
+1616: 			{
+1617: 				["id"] = 108354987933558,
+1618: 				["from"] = 0.4,
+1619: 				["to"] = 5.4
+1620: 			}
+1621: 		},
+1622: 		["roll"] = { 10, 80 }
+   ...
+1758: 		["variants"] = nil,
+1759: 		["fade"] = 0.4,
+1760: 		["duck"] = true,
+1761: 		["minGap"] = 0.3,
+1762: 		["variants"] = {
+1763: 			{
+1764: 				["id"] = 101396758527961,
+1765: 				["from"] = 0.25,
+1766: 				["to"] = 1.7
+1767: 			}
+1768: 		}
+1769: 	},
+1770: 	["HangUpClick"] = {
+1771: 		["group"] = "SFX",
+1772: 		["variants"] = nil,
+1773: 		["minGap"] = 0.3,
+1774: 		["variants"] = {
+1775: 			{
+1776: 				["id"] = 9117302747,
+1777: 				["from"] = 0.05,
+1778: 				["to"] = 0.7
+1779: 			}
+1780: 		}
+1781: 	},
+1782: 	["BusyTone"] = {
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Audio.Late =====
+   ...
+520: 		v122.loop:stop(0.2)
+521: 	end
+522: 	local v_u_123
+523: 	if p_u_120 then
+524: 		v_u_123 = p_u_120:FindFirstChild("HumanoidRootPart")
+525: 		if not (v_u_123 and v_u_123:IsA("BasePart")) then
+526: 			v_u_123 = nil
+527: 		end
+528: 	else
+529: 		v_u_123 = p_u_120
+530: 	end
+531: 	if p_u_120 and v_u_123 then
+532: 		local v_u_124 = v_u_10.loop("MayorSteps", v_u_123)
+533: 		if v_u_124 then
+534: 			v_u_124:setVolume(0)
+535: 			v_u_119 = v_u_119 + 1
+536: 			local v_u_125 = {
+537: 				["mayor"] = p_u_120,
+538: 				["loop"] = v_u_124,
+539: 				["token"] = v_u_119
+540: 			}
+541: 			v_u_118 = v_u_125
+542: 			local v_u_126 = v_u_13.Inspection
+543: 			task.spawn(function()
+544: 				-- upvalues: (ref) v_u_118, (copy) v_u_125, (copy) p_u_120, (copy) p_u_121, (copy) v_u_123, (copy) v_u_126, (copy) v_u_124
+   ...
+648: 					v_u_117.risk = p156.risk
+649: 					return
+650: 				end
+651: 			elseif p155 == "inspection" then
+652: 				local v158 = p156.mayor
+653: 				if typeof(v158) ~= "Instance" then
+654: 					return
+655: 				end
+656: 				v_u_10.play("ClipboardTap", v158)
+657: 				v_u_10.play("PenScribble", v158, {
+658: 					["delay"] = v_u_132.PenDelay
+659: 				})
+660: 				local v159 = v_u_6.Animation.MayorReactDelay
+661: 				if (p156.faults or 0) == 0 then
+662: 					v_u_10.play("ApproveDing", v158, {
+663: 						["delay"] = nil,
+664: 						["jitter"] = false,
+665: 						["delay"] = v159
+666: 					})
+667: 					return
+668: 				end
+669: 				task.delay(v159, v_u_11.say, v158, "hmm", "hmm")
+670: 			end
+671: 		end
+672: 	end)
+   ...
+700: 				v163.loop:stop(v_u_13.Phone.RingFade)
+701: 			end
+702: 			local v164 = v_u_117
+703: 			v164.token = v164.token + 1
+704: 			if p161 == "deal" then
+705: 				v_u_10.play("Handshake")
+706: 				v_u_10.play("DealChaChing", nil, {
+707: 					["delay"] = v_u_133.ChaChingDelay
+708: 				})
+709: 				return
+710: 			end
+711: 			if p161 == "hangup" then
+712: 				v_u_10.play("HangUpClick")
+713: 				v_u_10.play("BusyTone", nil, {
+714: 					["delay"] = nil,
+715: 					["jitter"] = false,
+716: 					["delay"] = v_u_133.BusyDelay
+717: 				})
+718: 			end
+719: 		end
+720: 	end)
+721: end
+722: local v_u_166 = {}
+723: local v_u_167 = 0
+724: local function v_u_184() -- name: bindUI
+   ...
+863: 		v210(v211, v212 or p209)
+864: 	end,
+865: 	["CashScoop"] = function(p213) -- name: CashScoop
+866: 		-- upvalues: (copy) v_u_10
+867: 		local v214 = v_u_10.play
+868: 		local v215 = "CashRustle"
+869: 		local v216 = p213:FindFirstChild("HumanoidRootPart")
+870: 		if not (v216 and v216:IsA("BasePart")) then
+871: 			v216 = nil
+872: 		end
+873: 		v214(v215, v216 or p213)
+874: 	end,
+875: 	["WardenVictory"] = function(p217) -- name: WardenVictory
+876: 		-- upvalues: (copy) v_u_11
+877: 		v_u_11.say(p217, "yeah", "yeah")
+878: 	end,
+879: 	["FistPump"] = function(p218) -- name: FistPump
+880: 		-- upvalues: (copy) v_u_11
+881: 		v_u_11.say(p218, "yeah", "yeah")
+882: 	end
+883: }
+884: local function v_u_229(p220, p221, p222) -- name: onTrack
+885: 	-- upvalues: (copy) v_u_219, (copy) v_u_208, (copy) v_u_200, (copy) v_u_207, (copy) v_u_47, (ref) v_u_23, (copy) v_u_19, (copy) v_u_13
+886: 	local v223 = p221.Name
+887: 	if p222 then
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Animation.Player =====
+   ...
+192: 			v55 = v54.Character:FindFirstChild("HumanoidRootPart")
+193: 		end
+194: 		if not (v55 and v55:IsA("BasePart")) then
+195: 			v55 = nil
+196: 		end
+197: 		local v56
+198: 		if typeof(p53) == "Instance" then
+199: 			v56 = p53:FindFirstChild("HumanoidRootPart")
+200: 		else
+201: 			v56 = false
+202: 		end
+203: 		if v55 and (v56 and (v56:IsA("BasePart") and (v56.Position - v55.Position).Magnitude <= v_u_7.AlarmReach)) then
+204: 			v_u_49("WardenPoint", "point", v_u_7.PointCooldown)
+205: 		end
+206: 	end)
+207: 	v_u_5.BarberSnip:Connect(function(_, p57, p58, p59)
+208: 		-- upvalues: (ref) v_u_6, (ref) v_u_1
+209: 		local v_u_60
+210: 		if typeof(p59) == "Instance" then
+211: 			v_u_60 = p59:FindFirstChildOfClass("Humanoid")
+212: 		else
+213: 			v_u_60 = false
+214: 		end
+215: 		if v_u_60 then
+216: 			v_u_60 = v_u_60:FindFirstChildOfClass("Animator") or Instance.new("Animator", v_u_60)
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Animation.AnimationIds =====
+   ...
+445: 		["hash"] = "6bc26848",
+446: 		["length"] = 1.35,
+447: 		["speed"] = 0,
+448: 		["loop"] = false
+449: 	},
+450: 	["LiftFlex"] = {
+451: 		["id"] = "rbxassetid://70519617660550",
+452: 		["hash"] = "d7e47660",
+453: 		["length"] = 4.5,
+454: 		["speed"] = 0,
+455: 		["loop"] = true
+456: 	},
+457: 	["MayorApprove"] = {
+458: 		["id"] = "rbxassetid://91155450902434",
+459: 		["hash"] = "e4363be8",
+460: 		["length"] = 2,
+461: 		["speed"] = 0,
+462: 		["loop"] = false
+463: 	},
+464: 	["MayorClipInspect"] = {
+465: 		["id"] = "rbxassetid://124060153111343",
+466: 		["hash"] = "8369b244",
+467: 		["length"] = 3.7,
+468: 		["speed"] = 0,
+469: 		["loop"] = true
+470: 	},
+471: 	["MayorClipWalk"] = {
+472: 		["id"] = "rbxassetid://82069219680802",
+473: 		["hash"] = "de149900",
+474: 		["length"] = 2.5,
+475: 		["speed"] = 0,
+476: 		["loop"] = true
+477: 	},
+478: 	["MayorInspect"] = {
+479: 		["id"] = "rbxassetid://105807613765235",
+480: 		["hash"] = "8d8d3eef",
+481: 		["length"] = 2.9,
+482: 		["speed"] = 0,
+483: 		["loop"] = true
+484: 	},
+485: 	["MayorTut"] = {
+486: 		["id"] = "rbxassetid://93191126985199",
+487: 		["hash"] = "586cfa60",
+488: 		["length"] = 2.3,
+489: 		["speed"] = 0,
+490: 		["loop"] = false
+491: 	},
+492: 	["MimeBox"] = {
+493: 		["id"] = "rbxassetid://122288497372700",
+494: 		["hash"] = "ae58d258",
+495: 		["length"] = 2.4,
+496: 		["speed"] = 0,
+497: 		["loop"] = true
+   ...
+683: 		["hash"] = "31996544",
+684: 		["length"] = 1.3,
+685: 		["speed"] = 0,
+686: 		["loop"] = false
+687: 	},
+688: 	["TrolleyPush"] = {
+689: 		["id"] = "rbxassetid://139948952043659",
+690: 		["hash"] = "f2fd250f",
+691: 		["length"] = 0.9,
+692: 		["speed"] = 0,
+693: 		["loop"] = true
+694: 	},
+695: 	["WardenPoint"] = {
+696: 		["id"] = "rbxassetid://84192195200214",
+697: 		["hash"] = "5693e900",
+698: 		["length"] = 1.2,
+699: 		["speed"] = 0,
+700: 		["loop"] = false
+701: 	},
+702: 	["WardenVictory"] = {
+703: 		["id"] = "rbxassetid://113567762359123",
+704: 		["hash"] = "89da5b00",
+705: 		["length"] = 1.6,
+706: 		["speed"] = 0,
+707: 		["loop"] = false
+708: 	},
+709: 	["WatchCheck"] = {
+710: 		["id"] = "rbxassetid://90324749331173",
+711: 		["hash"] = "f2483ca0",
+712: 		["length"] = 2.2,
+713: 		["speed"] = 0,
+714: 		["loop"] = false
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Animation.Hooks =====
+   ...
+515: 	end)
+516: 	v_u_5.HoudiniCaught:Connect(v_u_24)
+517: 	v_u_5.HappeningUpdate:Connect(function(p145, p146)
+518: 		-- upvalues: (ref) v_u_9, (ref) v_u_6, (ref) v_u_12, (ref) v_u_29, (ref) v_u_15
+519: 		if p145 == "inspection" and typeof(p146) == "table" then
+520: 			local v147 = p146.mayor
+521: 			if typeof(v147) == "Instance" then
+522: 				local v_u_148 = v_u_9.rig(p146.mayor)
+523: 				if v_u_148 then
+524: 					local v149 = p146.faults
+525: 					local v150 = (tonumber(v149) or 0) == 0
+526: 					local v151 = v_u_6.clipboard(v_u_148.model)
+527: 					local v152 = v_u_12.MayorReactDelay
+528: 					local v_u_153
+529: 					if v150 then
+530: 						v_u_153 = v151 and "MayorApprove" or "Clap"
+531: 					else
+532: 						v_u_153 = v151 and "MayorTut" or "Grumble"
+533: 					end
+534: 					task.delay(v152, function()
+535: 						-- upvalues: (ref) v_u_9, (copy) v_u_148, (copy) v_u_153, (ref) v_u_12
+536: 						if v_u_9.rig(v_u_148.model) == v_u_148 then
+537: 							v_u_9.fire(v_u_148, v_u_153, v_u_12.Fade)
+538: 						end
+539: 					end)
+540: 					if v150 then
+541: 						v_u_9.each(function(p_u_154)
+542: 							-- upvalues: (copy) v_u_148, (ref) v_u_6, (ref) v_u_29, (ref) v_u_12, (ref) v_u_15, (ref) v_u_9
+543: 							if p_u_154 ~= v_u_148 and (v_u_6.kind(p_u_154.model) == "criminal" and (p_u_154.model:GetAttribute("PrisonerState") == "Serving" and (v_u_29(p_u_154) and (p_u_154.root.Position - v_u_148.root.Position).Magnitude <= v_u_12.MayorReach))) then
+544: 								local v155 = v_u_15:NextNumber(0.2, 0.2 + v_u_12.ReactJitter)
+545: 								local v_u_156 = "Wave"
+546: 								task.delay(v155, function()
+547: 									-- upvalues: (ref) v_u_9, (copy) p_u_154, (copy) v_u_156, (ref) v_u_12
+548: 									if v_u_9.rig(p_u_154.model) == p_u_154 then
+549: 										v_u_9.fire(p_u_154, v_u_156, v_u_12.Fade)
+550: 									end
+551: 								end)
+552: 							end
+553: 						end)
+554: 					end
+555: 				end
+
+===== Players.Ranscriptsss.PlayerScripts.Client.Animation.Choose =====
+   ...
+91: 		return "TrayCarry"
+92: 	end
+93: 	if v33 == "Fight" then
+94: 		return "FightScuffle"
+95: 	end
+96: 	if v33 == "Stunned" or v_u_8.on(p29, "dazed") then
+97: 		return "Dizzy"
+98: 	end
+99: 	if v33 == "Conga" or v32 == "Conga" then
+100: 		return p30 and "CongaArms" or "CongaKick"
+101: 	end
+102: 	if v_u_8.clipboard(v31) then
+103: 		return p30 and "MayorClipWalk" or "MayorClipInspect"
+104: 	end
+105: 	if not p30 then
+106: 		if v33 == "Chop" and (v_u_7 and v_u_4.has(v_u_7)) then
+107: 			return v_u_7
+108: 		end
+109: 		local v34 = v_u_3.clip(p29)
+110: 		if v34 then
+111: 			return v34
+112: 		end
+113: 		if v_u_8.on(p29, "mime") then
+114: 			return "MimeBox"
+115: 		end
+   ...
+138: 			return "SitBed"
+139: 		end
+140: 		if v33 == "Lift" then
+141: 			return v35 and "BenchPress" or "LiftFlex"
+142: 		end
+143: 		if v33 == "Punch" then
+144: 			return "FightScuffle"
+145: 		end
+146: 		if v33 == "Basketball" then
+147: 			return "Dribble"
+148: 		end
+149: 		if v36 == "mayor" then
+150: 			return "MayorInspect"
+151: 		end
+152: 		if v36 == "clerk" and v_u_8.on(p29, "type") then
+153: 			return "ClerkType"
+154: 		end
+155: 		if v36 == "cook" and (v_u_8.on(p29, "stir") or v31:GetAttribute("WorkerState") == "working") then
+156: 			return "CookStir"
+157: 		end
+158: 		if v36 == "janitor" and (v_u_5 and (v_u_8.on(p29, "mop") and v_u_4.has(v_u_5.Clip))) then
+159: 			return v_u_5.Clip
+160: 		end
+161: 		if v_u_8.on(p29, "searched") then
+162: 			return "HandsUp"
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Theme =====
+   ...
+1207: v13.RowY = {
+1208: 	["Phone"] = 0.38,
+1209: 	["Tablet"] = 0.49,
+1210: 	["Desktop"] = 0.49
+1211: }
+1212: v13.BottomH = {
+1213: 	["Phone"] = 0.25,
+1214: 	["Tablet"] = 0.16,
+1215: 	["Desktop"] = 0.15
+1216: }
+1217: v5.Wanted = v13
+1218: v5.WelcomeMinAway = 3600
+1219: v5.Offer = {
+1220: 	["Priority"] = 75,
+1221: 	["Seconds"] = 45,
+1222: 	["HoldMax"] = 120,
+1223: 	["Height"] = nil,
+1224: 	["Aspect"] = nil,
+1225: 	["Photo"] = 0.84,
+1226: 	["Ring"] = 0.44,
+1227: 	["EndHold"] = 1.3,
+1228: 	["AnswerWait"] = 3,
+1229: 	["RibbonX"] = 0.015,
+1230: 	["RibbonW"] = 0.26,
+1231: 	["TitleGap"] = 0.012,
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.App =====
+   ...
+465: 			local v_u_144 = string.split(v143, "|")
+466: 			local v145 = v_u_144[1]
+467: 			if v145 == "toast" then
+468: 				v_u_12.show(v_u_144[2] or "info", v_u_144[3] or "Test toast")
+469: 				return
+470: 			elseif v145 == "cine" then
+471: 				if v_u_144[2] == "off" then
+472: 					v_u_29.exit("debug")
+473: 				else
+474: 					v_u_29.enter("debug")
+475: 				end
+476: 			elseif v145 == "say" then
+477: 				v_u_29.say(nil, v_u_144[2] or "Warden! Am I glad you built this new prison.")
+478: 				return
+479: 			elseif v145 == "arrive" then
+480: 				v_u_29.arrive()
+481: 				return
+482: 			elseif v145 == "banner" then
+483: 				local v146 = v_u_27.debug
+484: 				local v147 = v_u_144[2]
+485: 				v146("escape", tonumber(v147) or 6)
+486: 				return
+487: 			elseif v145 == "escapepopup" then
+488: 				v_u_28.debug()
+489: 				return
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Happenings =====
+   ...
+323: 	if v81 then
+324: 		if v_u_64 then
+325: 			v_u_64.life:clean()
+326: 			v_u_64.root:Destroy()
+327: 			v_u_64 = nil
+328: 		end
+329: 		v_u_21.hold("call", v_u_21.PRIORITY.call)
+330: 		local v82 = v_u_9.device
+331: 		local v83 = v82 == "Phone"
+332: 		local v84 = v_u_6.new()
+333: 		local v85 = v83 and 0.5 or (v82 == "Tablet" and 0.36 or 0.34)
+334: 		local v86 = v_u_13.new("Frame", {
+335: 			["Name"] = "MayorCall",
+336: 			["BackgroundTransparency"] = 1,
+337: 			["Size"] = nil,
+338: 			["SizeConstraint"] = nil,
+339: 			["Position"] = nil,
+340: 			["AnchorPoint"] = nil,
+341: 			["ZIndex"] = 40,
+342: 			["Parent"] = nil,
+343: 			["Size"] = UDim2.fromScale(1, v85),
+344: 			["SizeConstraint"] = Enum.SizeConstraint.RelativeYY,
+345: 			["Position"] = UDim2.fromScale(0.5, 1.4),
+346: 			["AnchorPoint"] = Vector2.new(0.5, 0.5),
+347: 			["Parent"] = v81
+   ...
+520: 			["Size"] = nil,
+521: 			["Position"] = nil,
+522: 			["AnchorPoint"] = nil,
+523: 			["ZIndex"] = 43,
+524: 			["Parent"] = nil,
+525: 			["Color"] = v_u_8.Color.TextInk,
+526: 			["Size"] = UDim2.fromScale(0.94, 0.84),
+527: 			["Position"] = UDim2.fromScale(0.5, 0.5),
+528: 			["AnchorPoint"] = Vector2.new(0.5, 0.5),
+529: 			["Parent"] = v94
+530: 		})
+531: 		local v96 = v_u_13.new("Frame", {
+532: 			["Name"] = "Offer",
+533: 			["BackgroundColor3"] = nil,
+534: 			["Size"] = nil,
+535: 			["Position"] = nil,
+536: 			["Rotation"] = -1.5,
+537: 			["ZIndex"] = 42,
+538: 			["Parent"] = nil,
+539: 			["BackgroundColor3"] = v_u_8.Color.Paper,
+540: 			["Size"] = UDim2.fromScale(0.46, 0.27),
+541: 			["Position"] = UDim2.fromScale(0.05, 0.48),
+542: 			["Parent"] = v_u_88
+543: 		})
+544: 		v_u_13.corner(v96, v_u_8.Radius.Card)
+   ...
+1010: 	if p156 == "inspection" then
+1011: 		local v165 = v_u_26
+1012: 		local v166 = p159.stops
+1013: 		v165.stops = tonumber(v166) or v_u_26.stops
+1014: 		local v167 = v_u_26
+1015: 		v_u_26.stop = 0
+1016: 		v167.strikes = 0
+1017: 		local v_u_168 = {
+1018: 			["icon"] = "clipboard",
+1019: 			["text"] = "MAYOR",
+1020: 			["tone"] = nil,
+1021: 			["lift"] = 3.2,
+1022: 			["name"] = "PT_MayorTag",
+1023: 			["tone"] = v_u_8.Tone.Sun
+1024: 		}
+1025: 		v_u_37(p158, v_u_168)
+1026: 		if not p158 then
+1027: 			task.delay(1, function()
+1028: 				-- upvalues: (ref) v_u_26, (ref) v_u_29, (ref) v_u_2, (ref) v_u_11, (ref) v_u_23, (ref) v_u_37, (copy) v_u_168
+1029: 				if v_u_26.id == "inspection" and (v_u_26.phase == "active" and not v_u_29) then
+1030: 					for _, v169 in v_u_2:GetTagged("Npc") do
+1031: 						if v169:GetAttribute("Happening") ~= "inspection" or v_u_11.ownerOf(v169) ~= v_u_23.UserId then
+1032: 							continue
+1033: 						end
+1034: 						v_u_26.target = v169
+   ...
+1075: 		local v180 = v_u_26
+1076: 		local v181 = p173.strikes
+1077: 		v180.strikes = tonumber(v181) or v_u_26.strikes
+1078: 		local v182 = p173.mayor
+1079: 		if typeof(v182) == "Instance" then
+1080: 			v_u_26.target = p173.mayor
+1081: 			if not v_u_29 then
+1082: 				v_u_37(p173.mayor, {
+1083: 					["icon"] = "clipboard",
+1084: 					["text"] = "MAYOR",
+1085: 					["tone"] = nil,
+1086: 					["lift"] = 3.2,
+1087: 					["name"] = "PT_MayorTag",
+1088: 					["tone"] = v_u_8.Tone.Sun
+1089: 				})
+1090: 			end
+1091: 		end
+1092: 		v_u_50()
+1093: 		if v_u_27 then
+1094: 			local v183 = v_u_26.strikes
+1095: 			if (v183 <= 0 and "gold" or (v183 <= v_u_24.Inspection.SilverStrikes and "silver" or "none")) == v175 then
+1096: 				v_u_10.punch(v_u_27.plate, 0.12)
+1097: 			else
+1098: 				v_u_10.shake(v_u_27.plate, 6)
+1099: 				v_u_10.punch(v_u_27.medal, 0.4)
+   ...
+1313: 				v_u_50()
+1314: 			end
+1315: 		end)
+1316: 		return
+1317: 	elseif p222 == "ring" then
+1318: 		v_u_155("mayor", 25, nil)
+1319: 		return
+1320: 	elseif p222 == "call" then
+1321: 		local v238 = {
+1322: 			["offer"] = 1650,
+1323: 			["tries"] = 0,
+1324: 			["risk"] = 0.1,
+1325: 			["nextOffer"] = 2300,
+1326: 			["text"] = "Warden! Splendid prison! Take $1,650 for your trouble?"
+1327: 		}
+1328: 		local v239 = v_u_26
+1329: 		local v240 = v_u_26
+1330: 	
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Passes =====
+   ...
+66: 		["short"] = "Two buff extra guards."
+67: 	},
+68: 	{
+69: 		["key"] = "R08",
+70: 		["icon"] = "guardcap",
+71: 		["name"] = "Full Staff",
+72: 		["text"] = "Hires every Robux staff slot (Clerks #2-3, Cook #2, Runner #2, Nurse #2) as soon as each one unlocks.",
+73: 		["short"] = "Every Robux staff slot."
+74: 	},
+75: 	{
+76: 		["key"] = "R09",
+77: 		["icon"] = "crown",
+78: 		["name"] = "VIP Warden",
+79: 		["text"] = "A gold warden crown, a VIP nameplate and +10% prison rating points.",
+80: 		["short"] = "Gold crown, VIP plate."
+81: 	}
+82: }
+83: local v_u_18 = (-1 / 0)
+84: local function v_u_25() -- name: states
+85: 	-- upvalues: (copy) v_u_3, (copy) v_u_1
+86: 	local v19 = v_u_3:FindFirstChild("Shop")
+87: 	if not v19 or (not v19:IsA("StringValue") or v19.Value == "") then
+88: 		return {}
+89: 	end
+90: 	local v20 = v_u_1.JSONDecode
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Promo =====
+   ...
+144: 		if v47 then
+145: 			v65 = v_u_8.Color.White
+146: 		else
+147: 			v65 = v_u_8.Color.Paper
+148: 		end
+149: 		v64.BackgroundColor3 = v65
+150: 		v64.Size = UDim2.fromOffset(v54, v_u_52)
+151: 		v64.Position = UDim2.new(0.5, 0, 1, -v61)
+152: 		v64.AnchorPoint = Vector2.new(0.5, 1)
+153: 		v64.Parent = v48
+154: 		local v_u_66 = v62(v63, v64)
+155: 		v_u_56:add(v_u_66)
+156: 		v_u_66:SetAttribute("Offer", p_u_44)
+157: 		local function v67() -- name: park
+158: 			-- upvalues: (copy) v_u_66, (ref) v_u_32
+159: 			v_u_66.Visible = not v_u_32()
+160: 		end
+161: 		v_u_66.Visible = not v_u_32()
+162: 		for _, v68 in v_u_31 do
+163: 			v_u_56:connect(v_u_19:GetAttributeChangedSignal(v68), v67)
+164: 		end
+165: 		v_u_13.corner(v_u_66, v_u_8.Radius.Tag)
+166: 		v_u_13.stroke(v_u_66, v_u_8.Stroke.Panel, v_u_8.Color.Ink, true)
+167: 		local v69
+168: 		if v_u_9.device == "Desktop" then
+   ...
+707: 		return
+708: 	elseif p195 == "boss" then
+709: 		v_u_146 = false
+710: 		v_u_24 = (-1 / 0)
+711: 		v_u_27[v_u_20.BossKey] = nil
+712: 		local v_u_196 = v_u_20.BossKey
+713: 		local v197 = v_u_146
+714: 		if not v197 then
+715: 			local v198 = v_u_6.Data
+716: 			if v198 == nil or v198.Settings == nil then
+717: 				v197 = false
+718: 			else
+719: 				v197 = v198.Settings.SeenBossOffer ~= nil
+720: 			end
+721: 			if v197 then
+722: 				v197 = v_u_19:GetAttribute("Setting_SeenBossOffer") == true
+723: 			end
+724: 		end
+725: 		if not v197 then
+726: 			v_u_147 = v_u_147 + 1
+727: 			local v_u_199 = v_u_147
+728: 			v_u_16.price(v_u_196)
+729: 			task.delay(0, function()
+730: 				-- upvalues: (ref) v_u_20, (copy) v_u_199, (ref) v_u_147, (ref) v_u_146, (ref) v_u_6, (ref) v_u_19, (ref) v_u_23, (ref) v_u_27, (copy) v_u_196, (ref) v_u_24, (ref) v_u_16, (ref) v_u_150, (ref) v_u_30, (ref) v_u_5, (ref) v_u_144
+731: 				local v200 = os.clock() + v_u_20.BossWait
+732: 				while os.clock() < v200 and v_u_199 == v_u_147 do
+733: 					local v201 = v_u_146
+734: 					if not v201 then
+735: 						local v202 = v_u_6.Data
+736: 						if v202 == nil or v202.Settings == nil then
+737: 							v201 = false
+738: 						else
+739: 							v201 = v202.Settings.SeenBossOffer ~= nil
+740: 						end
+741: 						if v201 then
+742: 							v201 = v_u_19:GetAttribute("Setting_SeenBossOffer") == true
+743: 						end
+744: 					end
+745: 					if v201 or (v_u_23 >= v_u_20.MaxPopups or v_u_27[v_u_196]) then
+746: 						return
+747: 					end
+748: 					local v203 = v_u_196
+749: 					local v204 = v_u_23 < v_u_20.MaxPopups and os.clock() - v_u_24 >= v_u_20.PopupGap and not v_u_27[v203]
+750: 					if v204 then
+751: 						local v205 = v_u_16.view(v203)
+752: 						if v205.state == "Available" and v205.why == nil then
+753: 							v204 = not v205.preview
+754: 						else
+755: 							v204 = false
+756: 						end
+757: 					end
+758: 					if v204 and (v_u_150(v_u_196) and v_u_30()) then
+759: 						v_u_146 = true
+760: 						local v206 = v_u_6.Data
+761: 						local v207
+762: 						if v206 == nil or v206.Settings == nil then
+763: 							v207 = false
+764: 						else
+765: 							v207 = v206.Settings.SeenBossOffer ~= nil
+766: 						end
+767: 						if v207 then
+768: 							v_u_5.send("Settings", "SeenBossOffer", true)
+769: 						end
+770: 						v_u_144(v_u_196, function()
+771: 							-- upvalues: (ref) v_u_5, (ref) v_u_196
+772: 							v_u_5.send("Buy", v_u_196)
+773: 						end, {
+774: 							["gold"] = true,
+775: 							["hold"] = nil,
+776: 							["hold"] = v_u_20.BossHold
+777: 						})
+778: 						return
+779: 					end
+780: 					task.wait(1)
+   ...
+863: 		end
+864: 	end)
+865: 	v_u_11.event("StarUp", function(p215)
+866: 		-- upvalues: (ref) v_u_20, (ref) v_u_146, (ref) v_u_6, (ref) v_u_19, (ref) v_u_147, (ref) v_u_16, (ref) v_u_23, (ref) v_u_27, (ref) v_u_24, (ref) v_u_150, (ref) v_u_30, (ref) v_u_5, (ref) v_u_144
+867: 		if tonumber(p215) == v_u_20.BossStars then
+868: 			local v_u_216 = v_u_20.BossKey
+869: 			local v217 = v_u_146
+870: 			if not v217 then
+871: 				local v218 = v_u_6.Data
+872: 				if v218 == nil or v218.Settings == nil then
+873: 			
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.ShopCatalog =====
+   ...
+157: 	},
+158: 	["R17"] = {
+159: 		["name"] = "Temp Crew",
+160: 		["line"] = "Two temp helpers mop and carry trays for 30 minutes.",
+161: 		["short"] = "Two helpers for 30 min."
+162: 	},
+163: 	["R18"] = {
+164: 		["name"] = "Builder Crew",
+165: 		["line"] = "A second building site and crews 25% faster. They brought donuts.",
+166: 		["short"] = "2 sites, faster builds."
+167: 	},
+168: 	["R09"] = {
+169: 		["name"] = "VIP Warden",
+170: 		["line"] = "Gold crown, VIP nameplate and bonus rating points. Fancy!",
+171: 		["short"] = "Gold crown, VIP plate."
+172: 	},
+173: 	["R19"] = {
+174: 		["name"] = "Rookie Pack",
+175: 		["line"] = "Cash, a free hire, 3 Rush tickets and a gold cap. Welcome, Warden!",
+176: 		["short"] = "Cash, a hire, 3 tickets."
+177: 	},
+178: 	["R20"] = {
+179: 		["name"] = "Boss Bundle",
+180: 		["line"] = "2x Cash, 2x Speed and VIP in one box. Sit back, Boss.",
+181: 		["short"] = "2x Cash, 2x Speed, VIP."
+182: 	},
+183: 	["R21"] = {
+184: 		["name"] = "Sheriff Warden",
+185: 		["line"] = "Hat, star, moustache. Yeehaw, the jail is now a saloon.",
+186: 		["short"] = "Hat, star, moustache."
+187: 	},
+188: 	["R22"] = {
+189: 		["name"] = "Gold General",
+190: 		["line"] = "Gold epaulettes, gold buttons, gold attitude.",
+191: 		["short"] = "All gold everything."
+192: 	},
+193: 	["R23"] = {
+194: 		["name"] = "Disco Warden",
+195: 		["line"] = "A light-up disco-ball head, shades and a disco suit. Party on, Warden.",
+196: 		["short"] = "Disco head, shades, disco suit."
+197: 	},
+198: 	["R24"] = {
+199: 		["name"] = "Gold Cruiser",
+200: 		["line"] = "A shiny gold police car. The siren is extra smug.",
+201: 		["short"] = "A shiny gold police car."
+202: 	},
+203: 	["R25"] = {
+204: 		["name"] = "Taxi Cab",
+205: 		["line"] = "Totally a police car. Please ignore the meter.",
+206: 		["short"] = "Totally a police car."
+207: 	},
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Admin =====
+   ...
+222: 	local v58 = {
+223: 		["id"] = "suites",
+224: 		["label"] = "SUITES",
+225: 		["icon"] = "star",
+226: 		["sections"] = nil,
+227: 		["sections"] = {
+228: 			{
+229: 				["label"] = "FAMILY SUITE OFFER",
+230: 				["items"] = nil,
+231: 				["items"] = {
+232: 					{
+233: 						["text"] = "OFFER (RANDOM)",
+234: 						["action"] = "suiteOffer",
+235: 						["tone"] = nil,
+236: 						["close"] = true,
+237: 						["tone"] = v_u_30
+238: 					},
+239: 					{
+240: 						["text"] = "ACCEPT OFFER",
+241: 						["action"] = "suiteAccept",
+242: 						["tone"] = nil,
+243: 						["close"] = true,
+244: 						["tone"] = v_u_29
+245: 					},
+246: 					{
+   ...
+1089: 							local v157
+1090: 							if v148.st and v148.st ~= "Serving" then
+1091: 								local v158 = v148.st
+1092: 								v157 = " (" .. tostring(v158) .. ")"
+1093: 							else
+1094: 								v157 = ""
+1095: 							end
+1096: 							local v159 = v149:format(v151, v153, v155, v156, v157)
+1097: 							local v160 = v_u_129
+1098: 							local v161 = p_u_130
+1099: 							local v162 = {
+1100: 								["text"] = nil,
+1101: 								["action"] = "suiteOffer",
+1102: 								["value"] = nil,
+1103: 								["tone"] = nil,
+1104: 								["close"] = true,
+1105: 								["text"] = string.upper(v159)
+1106: 							}
+1107: 							local v163 = v148.n
+1108: 							v162.value = tostring(v163)
+1109: 							v162.tone = v_u_30
+1110: 							v160(v161, v147, v162, p_u_131)
+1111: 						end
+1112: 					end
+1113: 				else
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.GroupReward =====
+   ...
+767: 			v_u_132:Destroy()
+768: 		end)
+769: 		v_u_132.Parent = v_u_18:WaitForChild("PlayerGui")
+770: 	end
+771: end
+772: function v_u_17.start() -- name: start
+773: 	-- upvalues: (copy) v_u_19, (copy) v_u_1, (copy) v_u_134, (copy) v_u_18, (copy) v_u_17
+774: 	if v_u_19.Enabled then
+775: 		v_u_1:GetInstanceAddedSignal("CaponeClaimButton"):Connect(v_u_134)
+776: 		for _, v135 in v_u_1:GetTagged("CaponeClaimButton") do
+777: 			v_u_134(v135)
+778: 		end
+779: 		v_u_18:GetAttributeChangedSignal("CaponeOffer"):Connect(function()
+780: 			-- upvalues: (ref) v_u_17
+781: 			v_u_17.open(true)
+782: 		end)
+783: 		v_u_18:GetAttributeChangedSignal("CaponeOpen"):Connect(function()
+784: 			-- upvalues: (ref) v_u_17
+785: 			v_u_17.open(false)
+786: 		end)
+787: 	end
+788: end
+789: return v_u_17
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Apartment =====
+   ...
+13: local v_u_13 = require(v6.Components.Button)
+14: local v_u_14 = require(v6.Components.RingTimer)
+15: local v_u_15 = require(v6.Album)
+16: local v_u_16 = require(v6.World.Guidance)
+17: local v_u_17 = require(v6.Components.Toast)
+18: local v_u_18 = require(v6.Rewards)
+19: local v_u_19 = require(v6.WorldTag)
+20: local v_u_20 = require(v6.Layers)
+21: local v_u_21 = require(v6.Retention.Common)
+22: local v_u_22 = require(v6.Components.Modal)
+23: local v23 = {}
+24: local v_u_24 = v1.LocalPlayer
+25: local v_u_25 = v_u_7.Offer
+26: local v_u_26 = nil
+27: local function v_u_35(p_u_27, p28) -- name: finish
+28: 	-- upvalues: (copy) v_u_7, (copy) v_u_21, (copy) v_u_10, (copy) v_u_24, (copy) v_u_25, (copy) v_u_11, (ref) v_u_26
+29: 	if not p_u_27.ended then
+30: 		p_u_27.ended = true
+31: 		p_u_27.ring:stop()
+32: 		p_u_27.accept.root.Visible = false
+33: 		p_u_27.decline.root.Visible = false
+34: 		local v29 = p_u_27.stamp:FindFirstChild("Word")
+35: 		local v30
+36: 		if p28 == "accepted" then
+37: 			v30 = v_u_7.Tone.Buy
+   ...
+131: 		local v56 = p50.expiresAt
+132: 		local v57 = tonumber(v56)
+133: 		local v58 = p50.heldAt
+134: 		local v59 = tonumber(v58)
+135: 		if v57 then
+136: 			local v60 = v57 - (v59 or workspace:GetServerTimeNow())
+137: 			v_u_55 = math.max(1, v60)
+138: 		end
+139: 		local v_u_61 = v_u_8.device
+140: 		local v_u_62 = v_u_8.h(v_u_25.Height[v_u_61] or v_u_25.Height.Desktop)
+141: 		local v63 = v_u_25.Aspect[v_u_61] or v_u_25.Aspect.Desktop
+142: 		local v_u_64 = v_u_12.new("Frame", {
+143: 			["Name"] = "ApartmentOffer",
+144: 			["BackgroundTransparency"] = 1,
+145: 			["Size"] = nil,
+146: 			["ZIndex"] = 31,
+147: 			["Size"] = UDim2.fromScale(1, v_u_62)
+148: 		})
+149: 		v_u_12.aspect(v_u_64, v63)
+150: 		local v_u_65 = v_u_12.new("Frame", {
+151: 			["Name"] = "Sheet",
+152: 			["BackgroundColor3"] = nil,
+153: 			["Size"] = nil,
+154: 			["Rotation"] = -1.2,
+155: 			["ZIndex"] = 31,
+   ...
+502: 	p_u_112:GetAttributeChangedSignal("LuxuryEscort"):Connect(v116)
+503: 	p_u_112.AncestryChanged:Connect(v116)
+504: 	v116()
+505: end
+506: local v_u_118 = {
+507: 	["declined"] = "declined",
+508: 	["expired"] = "expired",
+509: 	["timeout"] = "expired",
+510: 	["gone"] = "gone"
+511: }
+512: local function v_u_132() -- name: fromAttr
+513: 	-- upvalues: (copy) v_u_21, (copy) v_u_24, (ref) v_u_26, (copy) v_u_35, (copy) v_u_25, (copy) v_u_110
+514: 	local v119 = v_u_21.decode(v_u_24:GetAttribute("ApartmentOffer"))
+515: 	local v120 = v_u_26
+516: 	if type(v119) == "table" then
+517: 		if v119.phase == "escort" then
+518: 			if v120 then
+519: 				local v121 = v120.id
+520: 				local v122 = v119.id
+521: 				if v121 == tostring(v122) and not v120.ended then
+522: 					v_u_35(v120, "accepted")
+523: 					return
+524: 				end
+525: 			end
+526: 		elseif v119.phase == "card" then
+   ...
+569: 		if v134 and v133.shown then
+570: 			v133.ring:stop()
+571: 		end
+572: 		local v137 = v_u_24:FindFirstChildOfClass("PlayerGui")
+573: 		if not v137 then
+574: 			continue
+575: 		end
+576: 		v137:SetAttribute("PT_ApartmentHold", (v134 and "held " or "running ") .. v133.id)
+577: 	end
+578: end
+579: function v23.start() -- name: start
+580: 	-- upvalues: (copy) v_u_10, (copy) v_u_110, (ref) v_u_26, (copy) v_u_35, (copy) v_u_118, (copy) v_u_40, (copy) v_u_132, (copy) v_u_17, (copy) v_u_12, (copy) v_u_18, (copy) v_u_24, (copy) v_u_138, (copy) v_u_3, (copy) v_u_117
+581: 	v_u_10.event("ApartmentOffer", function(p139)
+582: 		-- upvalues: (ref) v_u_110
+583: 		if type(p139) == "table" then
+584: 			v_u_110(p139, false)
+585: 		end
+586: 	end)
+587: 	v_u_10.event("ApartmentAccepted", function()
+588: 		-- upvalues: (ref) v_u_26, (ref) v_u_35
+589: 		local v140 = v_u_26
+590: 		if v140 and not v140.ended then
+591: 			v_u_35(v140, "accepted")
+592: 		end
+593: 	end)
+   ...
+612: 			return
+613: 		end
+614: 	end)
+615: 	v_u_10.event("ApartmentMoved", function(_, _, p146)
+616: 		-- upvalues: (ref) v_u_17, (ref) v_u_12, (ref) v_u_18, (ref) v_u_10
+617: 		local v147 = tonumber(p146) or 0
+618: 		v_u_17.show("act
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.WhatsNew =====
+   ...
+319: 					end
+320: 				end,
+321: 				["Build"] = function(p62, p63) -- name: Build
+322: 					-- upvalues: (ref) v_u_60, (ref) v_u_55, (ref) v_u_18
+323: 					v_u_60 = v_u_55(p62, p63, 53)
+324: 					v_u_18 = v_u_60
+325: 				end
+326: 			})
+327: 		end
+328: 		v_u_64()
+329: 	end
+330: end
+331: local function v_u_65() -- name: onOffer
+332: 	-- upvalues: (copy) v_u_17, (copy) v_u_15, (ref) v_u_19, (ref) v_u_18, (copy) v_u_13, (copy) v_u_14
+333: 	if v_u_17:GetAttribute("WhatsNew") == v_u_15.Key then
+334: 		if not v_u_19 then
+335: 			v_u_19 = true
+336: 			task.delay(v_u_15.Delay, function()
+337: 				-- upvalues: (ref) v_u_17, (ref) v_u_15, (ref) v_u_18, (ref) v_u_13, (ref) v_u_14, (ref) v_u_19
+338: 				if v_u_17:GetAttribute("WhatsNew") == v_u_15.Key and not (v_u_18 or v_u_13.queued("whatsnew")) then
+339: 					v_u_14.open(true)
+340: 				else
+341: 					v_u_19 = false
+342: 				end
+343: 			end)
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.World.Guidance =====
+   ...
+387: 				return v_u_19
+388: 			elseif v_u_20 and v_u_95(v_u_20) then
+389: 				return v_u_20
+390: 			elseif v_u_19 and v_u_95(v_u_19, v_u_26) then
+391: 				return v_u_19
+392: 			else
+393: 				return v_u_21
+394: 			end
+395: 		elseif v_u_15:GetAttribute("Leading") ~= nil and v_u_19 then
+396: 			return v_u_19
+397: 		else
+398: 			if v_u_19 then
+399: 				local v99 = v_u_15:GetAttribute("ApartmentOffer")
+400: 				local v100
+401: 				if type(v99) == "string" then
+402: 					v100 = string.find(v99, "\"phase\":\"escort\"", 1, true) ~= nil
+403: 				else
+404: 					v100 = false
+405: 				end
+406: 				if v100 then
+407: 					return v_u_19
+408: 				end
+409: 			end
+410: 			if v_u_27 and (v_u_20 and v_u_95(v_u_20, true)) then
+411: 				return v_u_20
+   ...
+941: 					if typeof(v195) == "Instance" then
+942: 						v196 = p_u_187
+943: 					elseif v_u_190 == "cash" then
+944: 						v196 = v_u_77()
+945: 					else
+946: 						v196 = nil
+947: 					end
+948: 					v_u_14.set(p_u_186 .. v192, v196)
+949: 				end
+950: 			end)
+951: 		end
+952: 	end)
+953: 	v_u_15:GetAttributeChangedSignal("ApartmentOffer"):Connect(function()
+954: 		-- upvalues: (ref) v_u_104
+955: 		task.defer(v_u_104)
+956: 	end)
+957: 	v_u_15:GetAttributeChangedSignal("TutorialStep"):Connect(function()
+958: 		-- upvalues: (ref) v_u_104
+959: 		task.defer(v_u_104)
+960: 	end)
+961: 	v_u_15:GetAttributeChangedSignal("Leading"):Connect(function()
+962: 		-- upvalues: (ref) v_u_15, (ref) v_u_27, (ref) v_u_22, (ref) v_u_20, (ref) v_u_101, (ref) v_u_25, (ref) v_u_31, (ref) v_u_33, (ref) v_u_91
+963: 		if v_u_15:GetAttribute("Leading") ~= nil and not v_u_27 then
+964: 			v_u_22 = v_u_22 + 1
+965: 			v_u_20 = nil
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Retention.Tasks =====
+   ...
+20: 	["title"] = "WARDEN\'S TASKS",
+21: 	["claim"] = "CLAIM",
+22: 	["paid"] = "PAID",
+23: 	["reset"] = "NEW TASKS IN",
+24: 	["resetShort"] = "NEW IN",
+25: 	["chipClaim"] = "CLAIM!",
+26: 	["button"] = "TASKS",
+27: 	["buttonDone"] = "DONE",
+28: 	["doneToast"] = "Task done: %s! Claim it on your clipboard."
+29: }
+30: function v_u_17.list() -- name: list
+31: 	-- upvalues: (copy) v_u_16, (copy) v_u_18
+32: 	local v20 = v_u_16.decode(v_u_18:GetAttribute("WardenTasks"))
+33: 	local v21 = {}
+34: 	if type(v20) ~= "table" then
+35: 		return v21
+36: 	end
+37: 	for _, v22 in v20 do
+38: 		if type(v22) ~= "table" then
+39: 			continue
+40: 		end
+41: 		local v23 = v22.goal
+42: 		local v24 = tonumber(v23) or 1
+43: 		local v25 = math.max(1, v24)
+44: 		local v26 = v22.progress
+   ...
+487: 					task.wait(1)
+488: 					local v105 = v_u_102
+489: 					local v106
+490: 					if v_u_81 then
+491: 						v106 = v_u_19.resetShort
+492: 					else
+493: 						v106 = v_u_19.reset
+494: 					end
+495: 					local v107 = v_u_18
+496: 					v105.Text = v106 .. " " .. v_u_16.left((tonumber(v107:GetAttribute("TasksResetAt"))))
+497: 				end
+498: 			end))
+499: 			v_u_83:connect(v_u_18:GetAttributeChangedSignal("WardenTasks"), function()
+500: 				-- upvalues: (ref) v_u_17, (copy) v_u_84, (copy) v_u_85
+501: 				for v108, v109 in v_u_17.list() do
+502: 					if not v_u_84[v108] then
+503: 						continue
+504: 					end
+505: 					if v109.claimed then
+506: 						v_u_85[v109.slot] = nil
+507: 					end
+508: 					v_u_84[v108].update(v109, true)
+509: 				end
+510: 			end)
+511: 		end
+   ...
+677: 			end
+678: 			if v137 ~= v_u_131 and v_u_131 ~= "" then
+679: 				v_u_8.punch(v_u_117, 0.12)
+680: 				if v_u_126.Visible then
+681: 					v_u_8.punch(v_u_126, 0.25)
+682: 				end
+683: 			end
+684: 			v_u_131 = v137
+685: 		end
+686: 	end
+687: 	v_u_123.root.Visible = false
+688: 	v138()
+689: 	p112:connect(v_u_18:GetAttributeChangedSignal("WardenTasks"), v138)
+690: 	p112:add(function()
+691: 		-- upvalues: (ref) v_u_130
+692: 		if v_u_130 then
+693: 			v_u_130:Cancel()
+694: 		end
+695: 	end)
+696: 	return v_u_123.root
+697: end
+698: function v_u_17.start() -- name: start
+699: 	-- upvalues: (copy) v_u_17, (copy) v_u_14, (copy) v_u_9, (copy) v_u_18
+700: 	local v_u_139 = {}
+701: 	local v_u_140 = true
+   ...
+707: 				continue
+708: 			end
+709: 			v_u_139[v142] = true
+710: 			if v_u_140 or v141.claimed then
+711: 				continue
+712: 			end
+713: 			v_u_14.show("success", ("Task done: %s! Claim it on your clipboard."):format(v141.text))
+714: 			v_u_9.sound("ObjectiveDone")
+715: 		end
+716: 		v_u_140 = false
+717: 	end
+718: 	v143()
+719: 	v_u_18:GetAttributeChangedSignal("WardenTasks"):Connect(v143)
+720: end
+721: return v_u_17
+
+===== Players.Ranscriptsss.PlayerScripts.Client.UI.Retention.Join =====
+   ...
+218: 			v_u_50 = v58
+219: 		end
+220: 		local v59 = v58 - v_u_50
+221: 		local v60 = v_u_17:FindFirstChildOfClass("PlayerGui")
+222: 		if v60 then
+223: 			local v61 = v59 * 10
+224: 			v60:SetAttribute("PT_IdleFor", math.floor(v61) / 10)
+225: 		end
+226: 		return v59 < (v_u_7.Wanted.IdleFor or 4)
+227: 	end)
+228: 	v_u_10.busy("offer", function()
+229: 		-- upvalues: (ref) v_u_17
+230: 		local v62 = v_u_17:GetAttribute("ApartmentOffer")
+231: 		local v63
+232: 		if type(v62) == "string" then
+233: 			v63 = string.find(v62, "\"phase\":\"card\"", 1, true) ~= nil
+234: 		else
+235: 			v63 = false
+236: 		end
+237: 		return v63
+238: 	end, false)
+239: 	task.spawn(function()
+240: 		-- upvalues: (ref) v_u_17, (ref) v_u_22, (ref) v_u_19, (ref) v_u_36
+241: 		local v64 = os.clock()
+242: 		while os.clock() - v64 < 40 and v_u_17:GetAttribute("DataReady") ~= true do
+
+===== ReplicatedStorage.Shared.Config =====
+   ...
+412: 	["ScaleY"] = 0.9,
+413: 	["KeepHeight"] = nil,
+414: 	["PressDepth"] = 0.22,
+415: 	["PressDown"] = 0.07,
+416: 	["PressUp"] = 0.32,
+417: 	["PressHold"] = 0.3,
+418: 	["PressCheck"] = 0.05,
+419: 	["PressReach"] = 0.6,
+420: 	["HighlightMix"] = 0.4,
+421: 	["CapColors"] = nil,
+422: 	["Priority"] = nil,
+423: 	["NextCapacity"] = nil,
+424: 	["RobuxOffer"] = nil
+425: }
+426: local v5 = {
+427: 	["MaxSec"] = {
+428: 		["Rows"] = nil,
+429: 		["Show"] = 1,
+430: 		["Nudge"] = 45,
+431: 		["Source"] = "wing",
+432: 		["Rows"] = {
+433: 			"M02",
+434: 			"M03",
+435: 			"M04",
+436: 			"M05",
+   ...
+645: 		"C07",
+646: 		"C08",
+647: 		"C09",
+648: 		"C10",
+649: 		"C11",
+650: 		"C12",
+651: 		"C13",
+652: 		"C14",
+653: 		"C15",
+654: 		"C35"
+655: 	}
+656: }
+657: v4.RobuxOffer = {
+658: 	["Enabled"] = true,
+659: 	["Cooldown"] = 10,
+660: 	["AutoBuyWithin"] = 120,
+661: 	["QuietPlaySeconds"] = 600,
+662: 	["MinShortfallSeconds"] = 120,
+663: 	["Crates"] = nil,
+664: 	["Crates"] = {
+665: 		"R10_S",
+666: 		"R10_M",
+667: 		"R10_L",
+668: 		"R10_XL",
+669: 		"R10_MEGA"
+   ...
+2357: 	["FtueIdentityWait"] = 15,
+2358: 	["StudioSlotFresh"] = 180,
+2359: 	["AlbumMaxPages"] = 40,
+2360: 	["AlbumMaxSlots"] = 16,
+2361: 	["CakeResumeSeconds"] = 20,
+2362: 	["Settings"] = {
+2363: 		["Music"] = 1,
+2364: 		["SFX"] = 1,
+2365: 		["UI"] = 1,
+2366: 		["CameraShake"] = true,
+2367: 		["LowGraphics"] = false,
+2368: 		["ReduceMotion"] = false,
+2369: 		["SeenBossOffer"] = false
+2370: 	}
+2371: }
+2372: v1.Offline = {
+2373: 	["Enabled"] = true,
+2374: 	["Rate"] = 0.5,
+2375: 	["MinSeconds"] = 300,
+2376: 	["MaxSeconds"] = 28800,
+2377: 	["ClaimRate"] = 2
+2378: }
+2379: v1.MenuReward = {
+2380: 	["Enabled"] = true,
+2381: 	["Cash"] = 5000,
+   ...
+3069: 		["Minutes"] = 30,
+3070: 		["Mopper"] = 1,
+3071: 		["TrayRunner"] = 1
+3072: 	}
+3073: }
+3074: v31.Boosts = v33
+3075: v31.Packs = {
+3076: 	["R19"] = {
+3077: 		["Minutes"] = 45,
+3078: 		["MinCash"] = 3000,
+3079: 		["Tickets"] = 3,
+3080: 		["VoucherMax"] = 2500,
+3081: 		["OfferMinutes"] = 60,
+3082: 		["Field"] = "rookie"
+3083: 	}
+3084: }
+3085: v31.StarLock = {
+3086: 	["R10_L"] = 2,
+3087: 	["R10_XL"] = 3,
+3088: 	["R10_MEGA"] = 4,
+3089: 	["R17"] = 2
+3090: }
+3091: v31.Skip = {
+3092: 	["Tiers"] = nil,
+3093: 	["MinRemaining"] = 3,
+   ...
+4051: 		["BowApplause"] = {
+4052: 			["Volume"] = 0.3,
+4053: 			["Pitch"] = 1
+4054: 		},
+4055: 		["CatchSting"] = {
+4056: 			["Volume"] = 0.31,
+4057: 			["Pitch"] = 1
+4058: 		},
+4059: 		["InspectionMarch"] = {
+4060: 			["Volume"] = 0.35,
+4061: 			["Pitch"] = 1
+4062: 		},
+4063: 		["MayorSteps"] = {
+4064: 			["Volume"] = 0.45,
+4065: 			["Pitch"] = 1.05
+4066: 		},
+4067: 		["PenScribble"] = {
+4068: 			["Volume"] = 7,
+4069: 			["Pitch"] = 1.1
+4070: 		},
+4071: 		["ClipboardTap"] = {
+4072: 			["Volume"] = 2,
+4073: 			["Pitch"] = 1
+4074: 		},
+4075: 		["ApproveDing"] = {
+   ...
+4099: 		["TensionTick"] = {
+4100: 			["Volume"] = 0.5,
+4101: 			["Pitch"] = 1
+4102: 		},
+4103: 		["Handshake"] = {
+4104: 			["Volume"] = 0.35,
+4105: 			["Pitch"] = 1
+4106: 		},
+4107: 		["DealChaChing"] = {
+4108: 			["Volume"] = 1.8,
+4109: 			["Pitch"] = 1
+4110: 		},
+4111: 		["HangUpClick"] = {
+4112: 			["Volume"] = 0.95,
+4113: 			["Pitch"] = 1
+4114: 		},
+4115: 		["BusyTone"] = {
+4116: 			["Volume"] = 0.3,
+4117: 			["Pitch"] = 1
+4118: 		},
+4119: 		["AlbumOpen"] = {
+4120: 			["Volume"] = 1,
+4121: 			["Pitch"] = 1
+4122: 		},
+4123: 		["PageTurn"] = {
+   ...
+4695: 	},
+4696: 	["Inspection"] = {
+4697: 		["Radius"] = 26,
+4698: 		["MaxMarks"] = 6,
+4699: 		["MarkGap"] = 0.13,
+4700: 		["Big"] = 2.8,
+4701: 		["Small"] = 1.7,
+4702: 		["MarkLife"] = 1.6,
+4703: 		["Medal"] = 5,
+4704: 		["MedalLife"] = 2.8,
+4705: 		["Confetti"] = 30
+4706: 	},
+4707: 	["Mayor"] = {
+4708: 		["RingEvery"] = 0.32,
+4709: 		["Ring"] = 1.6,
+4710: 		["HopMaxSize"] = 3.2,
+4711: 		["Hop"] = 0.22,
+4712: 		["StackBase"] = 2,
+4713: 		["StackPerTry"] = 2,
+4714: 		["StackMax"] = 10,
+4715: 		["Brick"] = Vector3.new(1.5, 0.3, 0.72),
+4716: 		["Deal"] = 5.6,
+4717: 		["DealCoins"] = 14,
+4718: 		["DealBills"] 
+
+===== ReplicatedStorage.Shared.Events =====
+   ...
+86: 	"BasketShot",
+87: 	"YardFight",
+88: 	"FightEnded",
+89: 	"RareArrived",
+90: 	"RareBooked",
+91: 	"WantedClaimed",
+92: 	"WantedBooked",
+93: 	"VisitorArrived",
+94: 	"BarberRequest",
+95: 	"BarberSnip",
+96: 	"BarberCut",
+97: 	"BarberLeft",
+98: 	"ApartmentOffer",
+99: 	"ApartmentAccepted",
+100: 	"ApartmentMoved",
+101: 	"ApartmentCancelled",
+102: 	"ApartmentRefused",
+103: 	"MugshotMiss",
+104: 	"HoudiniTrick",
+105: 	"HoudiniCaught",
+106: 	"AlbumEntry",
+107: 	"AlbumPageComplete",
+108: 	"HappeningAnnounce",
+109: 	"HappeningStarted",
+110: 	"HappeningUpdate",
+111: 	"HappeningEnded",
+112: 	"WardenVerb",
+113: 	"AutoLock",
+114: 	"Lockdown",
+115: 	"TaserFired",
+116: 	"LockdownOver",
+117: 	"Tased",
+118: 	"LineMood",
+119: 	"LineLeft",
+120: 	"BarsRattle",
+121: 	"LadderRung",
+122: 	"LinePaused",
+123: 	"QuickBooking",
+124: 	"BuzzerCall",
+
+===== ReplicatedStorage.Shared.Dialogue =====
+1: local v1 = {
+2: 	["Intro"] = {
+3: 		"Warden! Am I glad you built this new prison.",
+4: 		"Criminals in this town are out of control!",
+5: 		"Be careful with them. They can be dangerous.",
+6: 		"This one\'s yours, Warden. Take him to booking!"
+7: 	},
+8: 	["LineMood"] = {
+9: 		{ "Ugh, this line...", "Any day now!", "*taps foot*" },
+10: 		{ "HEY! I\'m waiting here!", "This is taking FOREVER!", "Come on, Warden!" },
+11: 		{ "That\'s it, I\'m out!", "I\'m DONE waiting!", "Officer, take me away!" }
+12: 	},
+13: 	["LineLeftNotice"] = "Officer %s left with %s: he waited too long!",
+14: 	["OfficerNames"] = {
+15: 		"Dan",
+16: 		"Rita",
+17: 		"Gus",
+18: 		"Pat",
+19: 		"Lou",
+20: 		"Ned",
+21: 		"Flo",
+22: 		"Sal"
+23: 	},
+24: 	["LineLeftGag"] = {
+25: 		["crook"] = { "Pfffbbt! Too slow!", "Bye-bye, Warden!", "I\'ll be back... maybe!" },
+26: 		["officer"] = { "Next time, Warden!", "We\'ll be back!", "Shift\'s over, pal." }
+27: 	},
+28: 	["QuickBooking"] = "Quick booking! +$%s",
+29: 	["Buzzer"] = {
+30: 		["call"] = nil,
+31: 		["wait"] = "Over here, Warden!",
+32: 		["back"] = "Back to the line, then.",
+33: 		["call"] = { "Coming, Warden!", "On our way!", "Buzz buzz, here we come!" }
+34: 	},
+35: 	["Steps"] = {
+36: 		["desk"] = "Step on the pad: mugshot desk",
+37: 		["mugshot"] = "Lead him to the mugshot station",
+38: 		["photo"] = "Walk up to the computer for his mugshots",
+39: 		["snap"] = "Tap SNAP: front, left, right!",
+40: 		["open"] = "Open the cell door",
+41: 		["enter"] = "He walks in by himself",
+42: 		["close"] = "Step out and close the door",
+43: 		["cash"] = "Collect your cash in the office",
+44: 		["kitchen"] = "Your inmate is hungry! Unlock the kitchen counter",
+45: 		["cook"] = "Step into the green zone at the pot",
+   ...
+263: 		["done"] = "Nice one!"
+264: 	},
+265: 	["Puff"] = { "Huff... puff...", "Wait... cramp!", "So... out of shape..." },
+266: 	["Fumble"] = { "Where are my keys?!", "Come on, start!", "Wrong key... wrong key!" },
+267: 	["Nudge"] = {
+268: 		["vault"] = "Collect %s at the office!",
+269: 		["empty"] = "Fill your cells! Pick an inmate",
+270: 		["hungry"] = "%s is hungry! Cook soup",
+271: 		["feed"] = "Feed %s!",
+272: 		["rare"] = "RARE! Book %s"
+273: 	},
+274: 	["Parole"] = {
+275: 		"I\'m going straight, Warden!",
+276: 		"Best stay ever. Bye!",
+277: 		"I\'ll write you a postcard!",
+278: 		"Free! Thanks for the soup!"
+279: 	},
+280: 	["ParoleNotice"] = "%s was released on parole! +$%d",
+281: 	["Rare"] = {
+282: 		["arrived"] = "RARE INMATE: %s! Only you can book this one",
+283: 		["booked"] = "Rare booked: %s! +$%s",
+284: 		["slow"] = "Too slow! He\'s miming again",
+285: 		["blur"] = "Blurry! Snap when he freezes",
+286: 		["cake"] = "Who wants cake? Nobody look in my pillow."
+287: 	},
+   ...
+398: 			"Room service, please!"
+399: 		}
+400: 	},
+401: 	["MaxSec"] = {
+402: 		["door"] = "Wing %d"
+403: 	},
+404: 	["Wanted"] = {
+405: 		["claimed"] = "%s is on his way!",
+406: 		["arrived"] = "%s is in your line!",
+407: 		["booked"] = "CAPTURED! Bounty +%s"
+408: 	},
+409: 	["Inspection"] = {
+410: 		["announce"] = "INSPECTION DAY! The Mayor arrives in %d s: feed the hungry, cure the sick!",
+411: 		["hello"] = "Mayor here! Show me your prison!",
+412: 		["good"] = nil,
+413: 		["bad"] = nil,
+414: 		["gold"] = "Gold inspection! +$%s",
+415: 		["silver"] = "Silver inspection! +$%s",
+416: 		["none"] = "The Mayor frowned. Better luck next time!",
+417: 		["bye"] = "Keep it up, Warden!",
+418: 		["good"] = { "Splendid!", "Spotless!", "Marvellous!" },
+419: 		["bad"] = { "Hmm! A hungry inmate!", "Is that inmate SICK?", "Is someone ESCAPING?!" }
+420: 	},
+421: 	["Mayor"] = {
+422: 		["ring"] = "The Mayor is calling! Answer the office phone",
+423: 		["greet"] = "Warden! Splendid prison! Take $%s for your trouble?",
+424: 		["more"] = nil,
+425: 		["hangup"] = "That\'s IT! *click* (you still get $%s)",
+426: 		["deal"] = "Deal! +$%s",
+427: 		["missed"] = "You missed the Mayor\'s call",
+428: 		["more"] = {
+429: 			"MORE?! ...fine. $%s!",
+430: 			"You dri
+
+===== ReplicatedStorage.Shared.Upgrades =====
+   ...
+2659: 		["currency"] = "Cash",
+2660: 		["effect"] = "your rating stars glow on the roof, visible from the hub",
+2661: 		["subtitle"] = "your stars on the roof",
+2662: 		["tier"] = "T4",
+2663: 		["builds"] = nil,
+2664: 		["implemented"] = true,
+2665: 		["order"] = 156,
+2666: 		["requires"] = { "D08" },
+2667: 		["builds"] = { "neonStars" }
+2668: 	},
+2669: 	{
+2670: 		["id"] = "D10",
+2671: 		["name"] = "Golden Warden Statue",
+2672: 		["category"] = "Decor",
+2673: 		["requires"] = nil,
+2674: 		["stars"] = 5,
+2675: 		["ftue"] = nil,
+2676: 		["currency"] = "Cash",
+2677: 		["effect"] = "a gold statue of your avatar at the gate",
+2678: 		["subtitle"] = "a gold you at the gate",
+2679: 		["tier"] = "T5",
+2680: 		["builds"] = nil,
+2681: 		["implemented"] = true,
+2682: 		["order"] = 157,
+2683: 		["requires"] = { "D09" },
+   ...
+2812: 		["currency"] = "Robux",
+2813: 		["effect"] = "hires every Robux worker slot (Clerks 2\226\128\1473, Cook 2, Runner 2, Nurse 2) as each unlocks",
+2814: 		["subtitle"] = "all 5 robux helpers",
+2815: 		["tier"] = "any",
+2816: 		["builds"] = nil,
+2817: 		["implemented"] = true,
+2818: 		["order"] = 165,
+2819: 		["requires"] = { "W01" },
+2820: 		["builds"] = {}
+2821: 	},
+2822: 	{
+2823: 		["id"] = "R09",
+2824: 		["name"] = "VIP Warden",
+2825: 		["category"] = "Robux",
+2826: 		["requires"] = nil,
+2827: 		["stars"] = 1,
+2828: 		["ftue"] = nil,
+2829: 		["currency"] = "Robux",
+2830: 		["effect"] = "gold warden crown, VIP nameplate, +10% rating points",
+2831: 		["subtitle"] = "gold crown, +10% rating",
+2832: 		["tier"] = "any",
+2833: 		["builds"] = nil,
+2834: 		["implemented"] = true,
+2835: 		["order"] = 166,
+2836: 		["requires"] = {},
+   ...
+3005: 		["order"] = 176,
+3006: 		["requires"] = { "ftue" },
+3007: 		["builds"] = {}
+3008: 	},
+3009: 	{
+3010: 		["id"] = "R20",
+3011: 		["name"] = "Boss Bundle",
+3012: 		["category"] = "Robux",
+3013: 		["requires"] = nil,
+3014: 		["stars"] = 1,
+3015: 		["ftue"] = nil,
+3016: 		["currency"] = "Robux",
+3017: 		["effect"] = "pass bundle: 2x Cash + 2x Speed + VIP Warden",
+3018: 		["subtitle"] = "2x cash, speed, vip",
+3019: 		["tier"] = "any",
+3020: 		["builds"] = nil,
+3021: 		["implemented"] = true,
+3022: 		["order"] = 177,
+3023: 		["requires"] = {},
+3024: 		["builds"] = {}
+3025: 	},
+3026: 	{
+3027: 		["id"] = "R21",
+3028: 		["name"] = "Sheriff Warden",
+3029: 		["category"] = "Robux",
+3030: 		["requires"] = nil,
+3031: 		["stars"] = 1,
+3032: 		["ftue"] = nil,
+3033: 		["currency"] = "Robux",
+3034: 		["effect"] = "pass, cosmetic: sheriff outfit",
+3035: 		["subtitle"] = "sheriff outfit",
+3036: 		["tier"] = "any",
+3037: 		["builds"] = nil,
+3038: 		["implemented"] = true,
+3039: 		["order"] = 178,
+3040: 		["requires"] = {},
+   ...
+3050: 		["currency"] = "Robux",
+3051: 		["effect"] = "pass, cosmetic: gold general outfit",
+3052: 		["subtitle"] = "gold general outfit",
+3053: 		["tier"] = "any",
+3054: 		["builds"] = nil,
+3055: 		["implemented"] = true,
+3056: 		["order"] = 179,
+3057: 		["requires"] = {},
+3058: 		["builds"] = {}
+3059: 	},
+3060: 	{
+3061: 		["id"] = "R23",
+3062: 		["name"] = "Disco Warden",
+3063: 		["category"] = "Robux",
+3064: 		["requires"] = nil,
+3065: 		["stars"] = 1,
+3066: 		["ftue"] = nil,
+3067: 		["currency"] = "Robux",
+3068: 		["effect"] = "pass, cosmetic: disco outfit with a light-up hat",
+3069: 		["subtitle"] = "disco outfit",
+3070: 		["tier"] = "any",
+3071: 		["builds"] = nil,
+3072: 		["implemented"] = true,
+3073: 		["order"] = 180,
+3074: 		["requires"] = {},
+
+===== ReplicatedStorage.Shared.Looks =====
+   ...
+1249: 				["HatAccessory"] = "12366277133",
+1250: 				["Shirt"] = 12105130104,
+1251: 				["Pants"] = 4867896526
+1252: 			},
+1253: 			{
+1254: 				["HairAccessory"] = "17750355551",
+1255: 				["Shirt"] = 7514983824,
+1256: 				["Pants"] = 6153556100
+1257: 			}
+1258: 		}
+1259: 	},
+1260: 	["mayor"] = {
+1261: 		["name"] = "Mayor",
+1262: 		["kind"] = "worker",
+1263: 		["base"] = nil,
+1264: 		["variants"] = nil,
+1265: 		["base"] = {
+1266: 			["HatAccessory"] = "87057750200062",
+1267: 			["FaceAccessory"] = "113416176026084,9365899389",
+1268: 			["FrontAccessory"] = "7134921197",
+1269: 			["NeckAccessory"] = "4462039580",
+1270: 			["Shirt"] = 6340966010,
+1271: 			["Pants"] = 5188331152,
+1272: 			["WidthScale"] = 1.15,
+1273: 			["DepthScale"] = 1.1
+
+===== REMOTES =====
